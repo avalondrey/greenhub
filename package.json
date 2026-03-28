@@ -1,0 +1,24 @@
+{
+  "name": "greenhub",
+  "version": "1.0.0",
+  "description": "Mon Jardin Intelligent — Piloté par l'IA",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "deploy:vercel": "vercel --prod",
+    "deploy:gh-pages": "gh-pages -d dist"
+  },
+  "dependencies": {
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0",
+    "@dnd-kit/core": "^6.3.1",
+    "@dnd-kit/sortable": "^10.0.0"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "^4.7.0",
+    "vite": "^7.3.1",
+    "gh-pages": "^6.2.0"
+  }
+}
