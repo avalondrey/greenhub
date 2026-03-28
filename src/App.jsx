@@ -571,7 +571,7 @@ function IsoDefs() {
 }
 
 // ── BLOC TERRAIN ISOMÉTRIQUE ─────────────────────────────────────────────────
-function IsoTerrainBlock({ cx, cy, selected, plant, onClick }) {
+function IsoTerrainBlock({ cx, cy, selected, plant, stage, stageIdx, onClick }) {
   const hw = TW / 2;
   const hh = TH / 2;
 
@@ -596,6 +596,80 @@ function IsoTerrainBlock({ cx, cy, selected, plant, onClick }) {
     if (i % 2 === 1) crenel.push(<rect key={`cr${i}`} x={bx2-1.5} y={by2-1} width={3} height={5} fill="#3d8a18" opacity={0.8}/>);
   }
 
+  // Couleur de l'alvéole selon le stade
+  const stageColors = [
+    'rgba(139,94,60,0.4)',   // graine - terre
+    'rgba(74,158,32,0.25)', // germination - vert clair
+    'rgba(46,125,50,0.35)', // levée
+    'rgba(46,125,50,0.5)',  // petite
+    'rgba(46,125,50,0.65)', // moyenne
+    'rgba(46,125,50,0.8)',  // prête
+  ];
+
+  const glowColors = [
+    '#8b5e3c',  // graine
+    '#4a9e20',  // germination
+    '#2e7d32',  // levée
+    '#388e3c',  // petite
+    '#43a047',  // moyenne
+    '#66bb6a',  // prête
+  ];
+
+  const stageIdxSafe = stageIdx !== null && stageIdx !== undefined ? stageIdx : 0;
+
+  // Rendu d'une plante à un stade donné
+  const renderPlant = () => {
+    if (!plant || !stage) return null;
+    const emoji = stage.emoji;
+    const scale = stage.scale;
+    const opacity = stage.opacity;
+    const fontSize = 8 + scale * 8;
+    const plantInfo = PLANTS_SIMPLE.find(p => p.id === plant.plantId);
+    const glowColor = glowColors[stageIdxSafe] || glowColors[0];
+    return (
+      <>
+        {/* Halo de croissance */}
+        <ellipse cx={cx} cy={cy + hh + 2} rx={fontSize * 0.8} ry={fontSize * 0.4}
+          fill={glowColor} opacity={0.25 * opacity}/>
+        {/* Petite ombre */}
+        <ellipse cx={cx} cy={cy + hh + 6} rx={fontSize * 0.5} ry={fontSize * 0.2}
+          fill="rgba(0,0,0,0.3)"/>
+        {/* Texte emoji */}
+        <text
+          x={cx}
+          y={cy + hh - 1}
+          textAnchor="middle"
+          fontSize={fontSize}
+          opacity={opacity}
+          style={{
+            userSelect: "none",
+            filter: `drop-shadow(0 ${scale}px ${scale * 2}px rgba(0,0,0,0.5))`,
+          }}
+        >
+          {emoji}
+        </text>
+        {/* Indicateur barre de croissance (stade actuel) */}
+        {stageIdxSafe < 5 && (
+          <g>
+            <rect x={cx - 10} y={cy + TH - 5} width={20} height={3} rx={1}
+              fill="rgba(0,0,0,0.4)" opacity={0.7}/>
+            <rect x={cx - 10} y={cy + TH - 5} width={20 * ((stageIdxSafe + 1) / 6)} height={3} rx={1}
+              fill={glowColor} opacity={0.9}/>
+          </g>
+        )}
+        {/* Indicateur "PRÊTE" pour stade max */}
+        {stageIdxSafe === 5 && (
+          <>
+            <rect x={cx - 14} y={cy - 4} width={28} height={9} rx={2}
+              fill="#e63946" opacity={0.9}/>
+            <text x={cx} y={cy + 3} textAnchor="middle" fontSize="6" fill="#fff"
+              style={{ userSelect: "none" }}>PRÊTE!</text>
+          </>
+        )}
+      </>
+    );
+  };
+
   return (
     <g onClick={onClick} style={{ cursor: "pointer" }}>
       {/* Faces dirt */}
@@ -608,6 +682,10 @@ function IsoTerrainBlock({ cx, cy, selected, plant, onClick }) {
       {crenel}
       {/* Face top */}
       <polygon points={topPts} fill={selected ? "url(#isoGrassSelPat)" : "url(#isoGrassPat)"} />
+      {/* Teinte de croissance sur la tuile */}
+      {plant && stage && (
+        <polygon points={topPts} fill={stageColors[stageIdxSafe] || stageColors[0]} style={{ mixBlendMode: 'overlay' }}/>
+      )}
       {/* Outline */}
       <polygon points={topPts} fill="none" stroke={selected ? "#ffffff" : "#2d6e10"} strokeWidth={selected ? 2 : 1} opacity={selected ? 0.9 : 0.5}/>
       <polygon points={leftPts}  fill="none" stroke="#3d2010" strokeWidth={1} opacity={0.4}/>
@@ -617,13 +695,8 @@ function IsoTerrainBlock({ cx, cy, selected, plant, onClick }) {
       <ellipse cx={cx - hw*0.5} cy={cy+TH+TD-4} rx={2.5} ry={1.5} fill="#5a3820" opacity={0.6}/>
       <ellipse cx={cx + hw*0.3} cy={cy+hh+TD-3} rx={2} ry={1} fill="#4a3018" opacity={0.5}/>
 
-      {/* Plante */}
-      {plant ? (
-        <text x={cx} y={cy + hh - 2} textAnchor="middle" fontSize={plant.status === 0 ? 14 : 18}
-          style={{ userSelect:"none", filter:"drop-shadow(0 2px 4px rgba(0,0,0,0.8))" }}>
-          {plant.status === 0 ? "🌱" : PLANTS_SIMPLE.find(p=>p.id===plant.plantId)?.emoji}
-        </text>
-      ) : (
+      {/* Plante avec stades de croissance */}
+      {plant && stage ? renderPlant() : (
         <text x={cx} y={cy+hh+4} textAnchor="middle" fontSize={7}
           fill="rgba(255,255,255,0.15)" style={{userSelect:"none", fontFamily:"monospace"}}>·</text>
       )}
@@ -738,13 +811,15 @@ function IsometricMiniSerre({ serre, selectedIdx, onCellClick }) {
             const ad = serre.alveoleData?.[idx];
             const dbPlant = alv ? PLANTS_DB.find(p => p.id === alv.plantId) : null;
             const stage = alv ? getGrowthStage(ad?.plantedDate, dbPlant?.daysToMaturity || 60) : null;
-            const plantData = alv ? { ...alv, status: stage ? (stage.name === 'graine' || stage.name === 'germination' ? 0 : 1) : 0 } : null;
+            const stageIdx = stage ? Math.min(Math.floor(((Date.now() - new Date(ad?.plantedDate).getTime()) / (1000 * 60 * 60 * 24)) / (dbPlant?.daysToMaturity || 60) * (GROWTH_STAGES.length - 1)), GROWTH_STAGES.length - 1) : null;
             return (
               <IsoTerrainBlock
                 key={idx}
                 cx={x + TW/2} cy={y}
                 selected={selectedIdx === idx}
-                plant={plantData}
+                plant={alv}
+                stage={stage}
+                stageIdx={stageIdx}
                 onClick={() => onCellClick(idx)}
               />
             );
