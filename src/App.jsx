@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { PLANTS_DB, PLANTS_SIMPLE, generateTasks, estimateYield } from './db/plants.js';
-import useTileFusion, { TOMATO_TILE_MAP, TILESET_STAGE_COUNT } from './hooks/useTileFusion';
+import useTileEngine, { TOMATO_TILE_MAP, TILESET_STAGE_COUNT } from './hooks/useTileFusion';
 
 // ─── GARDEN OBJECTS DATABASE ──────────────────────────────────────────────────
 // Objets du jardin réel : arbres, haies, arbustes, petits fruits, cabanons, serres
@@ -665,7 +665,7 @@ function IsoDefs() {
 
 // ── BLOC TERRAIN ISOMÉTRIQUE ─────────────────────────────────────────────────
 // Supporte tileCutterData: tuiles Canvas pré-découpées depuis le TileSet
-function IsoTerrainBlock({ cx, cy, selected, isMoving, plant, stage, stageIdx, onClick, fusedTile, terrainDims }) {
+function IsoTerrainBlock({ cx, cy, selected, isMoving, plant, stage, stageIdx, onClick }) {
   const hw = TW / 2;
   const hh = TH / 2;
 
@@ -711,51 +711,7 @@ function IsoTerrainBlock({ cx, cy, selected, isMoving, plant, stage, stageIdx, o
 
   const stageIdxSafe = stageIdx !== null && stageIdx !== undefined ? stageIdx : 0;
 
-  // ── FUSED TILE: vrai bloc terrain pixel art + sprite pré-fusionnés ──
-  if (fusedTile && terrainDims) {
-    const { terrainW, terrainH, spriteArea } = terrainDims;
-    // Le bloc terrain fait terrainW × terrainH (≈290×270)
-    // Le sprite occupe spriteArea px au-dessus
-    // On aligne le bloc terrain avec la position iso (cx, cy = top du diamond SVG)
-    // Le top du diamond dans l'image terrain est à ~32% depuis le haut du bloc
-    const topFaceRatio = 0.32;
-    const terrainTopInImg = Math.round(terrainH * topFaceRatio);
-    const fusedH = spriteArea + terrainH;
-    // On positionne pour que la face top du bloc terrain corresponde à (cx, cy)
-    const imgX = cx - terrainW / 2;
-    const imgY = cy - spriteArea - terrainTopInImg;
-    return (
-      <g onClick={onClick} style={{ cursor: 'pointer' }}>
-        <image
-          href={fusedTile}
-          x={imgX}
-          y={imgY}
-          width={terrainW}
-          height={fusedH}
-          style={{ imageRendering: 'pixelated' }}
-        />
-        {/* Sélection */}
-        {selected && (
-          <polygon
-            points={`${cx},${cy} ${cx+hw},${cy+hh} ${cx},${cy+TH} ${cx-hw},${cy+hh}`}
-            fill="rgba(255,255,255,0.12)" stroke="#fff" strokeWidth={2}
-          />
-        )}
-        {isMoving && (
-          <>
-            <polygon
-              points={`${cx},${cy} ${cx+hw},${cy+hh} ${cx},${cy+TH} ${cx-hw},${cy+hh}`}
-              fill="rgba(46,204,113,0.2)" stroke="#2ecc71" strokeWidth={2} strokeDasharray="4,2"
-            />
-            <text x={cx} y={cy - 6} textAnchor="middle" fontSize="8" fill="#2ecc71"
-              style={{ userSelect: 'none' }}>📍</text>
-          </>
-        )}
-      </g>
-    );
-  }
-
-  // Rendu d'une plante à un stade donné (fallback pour plantes sans tileset fusionné)
+  // Rendu d'une plante à un stade donné (fallback pour plantes sans tileset)
   const renderPlant = () => {
     if (!plant || !stage) return null;
     const plantId = plant.plantId;
@@ -923,19 +879,35 @@ function IsoWoodPost({ cx, cy }) {
 }
 
 // ── MINI-SERRE ISOMÉTRIQUE COMPLÈTE ──────────────────────────────────────────
+// Quand le moteur tileset est dispo → rendu direct via <image> (pixel art)
+// Sinon → fallback IsoTerrainBlock (SVG polygons + emoji)
 function IsometricMiniSerre({ serre, selectedIdx, movingIdx, onCellClick }) {
   const tick = useRealtimeGrowth();
-  const { getTileForPlant, loaded, terrainW, terrainH, spriteArea } = useTileFusion();
-  const terrainDims = loaded ? { terrainW, terrainH, spriteArea } : null;
+  const { getPlantTile, isTomato, terrainTile, blockW, blockH, diamondTopRatio, ready } = useTileEngine();
+
+  // ── Mode tileset : les cellules utilisent les vraies images ──
+  const anyTomato = serre.alveoles.some(a => a && isTomato(a.plantId));
+  const useTileEngine = ready && anyTomato;
+
+  // Dimensions de la grille selon le mode
+  const cellW = useTileEngine ? blockW : TW;
+  const cellH = useTileEngine ? blockH : (TH + TD);
+
+  // Fonction de position iso adaptée
+  const isoPos = (c, r) => ({
+    x: (c - r) * (cellW / 2),
+    y: (c + r) * (cellH / 4),  // ratio isométrique
+  });
+
   const allPos = [];
   for (let r = 0; r < ISO_ROWS; r++)
     for (let c = 0; c < ISO_COLS; c++)
-      allPos.push(isoXY(c, r));
+      allPos.push(isoPos(c, r));
 
-  const minX = Math.min(...allPos.map(p => p.x)) - TW/2;
-  const maxX = Math.max(...allPos.map(p => p.x)) + TW/2;
+  const minX = Math.min(...allPos.map(p => p.x)) - cellW/2;
+  const maxX = Math.max(...allPos.map(p => p.x)) + cellW/2;
   const minY = Math.min(...allPos.map(p => p.y));
-  const maxY = Math.max(...allPos.map(p => p.y)) + TH + TD;
+  const maxY = Math.max(...allPos.map(p => p.y)) + cellH;
 
   const padX = 50, padTop = 90, padBot = 40;
   const svgW = maxX - minX + padX * 2;
@@ -943,21 +915,11 @@ function IsometricMiniSerre({ serre, selectedIdx, movingIdx, onCellClick }) {
   const ox = -minX + padX;
   const oy = -minY + padTop;
 
-  // Coins pour poteaux
-  const corners = [
-    isoXY(-0.5, -0.5),
-    isoXY(ISO_COLS - 0.5, -0.5),
-    isoXY(-0.5, ISO_ROWS - 0.5),
-    isoXY(ISO_COLS - 0.5, ISO_ROWS - 0.5),
-  ];
-
   // Coins serre pour le dôme
-  const tl = isoXY(-0.5, -0.5);
-  const tr = isoXY(ISO_COLS-0.5, -0.5);
-  const bl = isoXY(-0.5, ISO_ROWS-0.5);
-  const br = isoXY(ISO_COLS-0.5, ISO_ROWS-0.5);
-  const domeY = -38;
-  const domeH = 52;
+  const tl = isoPos(-0.5, -0.5);
+  const tr = isoPos(ISO_COLS-0.5, -0.5);
+  const bl = isoPos(-0.5, ISO_ROWS-0.5);
+  const br = isoPos(ISO_COLS-0.5, ISO_ROWS-0.5);
 
   return (
     <svg width={svgW} height={svgH} viewBox={`0 0 ${svgW} ${svgH}`}
@@ -981,53 +943,96 @@ function IsometricMiniSerre({ serre, selectedIdx, movingIdx, onCellClick }) {
 
       <g transform={`translate(${ox},${oy})`}>
 
-        {/* Tuiles isométriques back-to-front */}
-        {Array.from({length: ISO_ROWS}, (_,r) =>
-          Array.from({length: ISO_COLS}, (_,c) => {
-            const idx = r * ISO_COLS + c;
-            const {x, y} = isoXY(c, r);
-            const alv = serre.alveoles[idx];
-            const ad = serre.alveoleData?.[idx];
-            const dbPlant = alv ? PLANTS_DB.find(p => p.id === alv.plantId) : null;
-            const isTomatoPlant = alv && (alv.plantId in TOMATO_TILE_MAP);
+        {/* ── MODE MOTEUR TILESET : <image> direct ── */}
+        {useTileEngine ? (
+          Array.from({length: ISO_ROWS}, (_,r) =>
+            Array.from({length: ISO_COLS}, (_,c) => {
+              const idx = r * ISO_COLS + c;
+              const {x, y} = isoPos(c, r);
+              const alv = serre.alveoles[idx];
+              const ad = serre.alveoleData?.[idx];
+              const dbPlant = alv ? PLANTS_DB.find(p => p.id === alv.plantId) : null;
+              const cx = x + cellW / 2;
 
-            // ── Calcul du stade : moteur tileset (5) vs SVG fallback (6) ──
-            let stage, stageIdx;
-            if (alv) {
-              const elapsed = ad?.plantedDate
-                ? (Date.now() - new Date(ad.plantedDate).getTime()) / (1000 * 60 * 60 * 24)
-                : 0;
-              const maturity = dbPlant?.daysToMaturity || 60;
-              const progress = Math.min(elapsed / maturity, 1);
-
-              if (isTomatoPlant) {
-                // Moteur tileset : 5 stades (0→4)
+              // Calcul stade moteur tileset (5 stades)
+              let stageIdx = null;
+              if (alv) {
+                const elapsed = ad?.plantedDate
+                  ? (Date.now() - new Date(ad.plantedDate).getTime()) / (86400000)
+                  : 0;
+                const maturity = dbPlant?.daysToMaturity || 60;
+                const progress = Math.min(elapsed / maturity, 1);
                 stageIdx = Math.min(Math.floor(progress * TILESET_STAGE_COUNT), TILESET_STAGE_COUNT - 1);
-                stage = TILESET_GROWTH[stageIdx];
-              } else {
-                // Fallback SVG : 6 stades (0→5)
-                stageIdx = Math.min(Math.floor(progress * (GROWTH_STAGES.length - 1)), GROWTH_STAGES.length - 1);
-                stage = GROWTH_STAGES[stageIdx];
               }
-            }
 
-            // TileFusion: tuile composite (bloc terre + sprite) pour tomates
-            const fusedTile = alv && stageIdx !== null ? getTileForPlant(alv.plantId, stageIdx) : null;
-            return (
-              <IsoTerrainBlock
-                key={idx}
-                cx={x + TW/2} cy={y}
-                selected={selectedIdx === idx}
-                isMoving={movingIdx === idx}
-                plant={alv}
-                stage={stage}
-                stageIdx={stageIdx}
-                onClick={() => onCellClick(idx)}
-                fusedTile={fusedTile}
-                terrainDims={terrainDims}
-              />
-            );
-          })
+              // Choisir la bonne image
+              const isTom = alv && isTomato(alv.plantId);
+              const plantImg = isTom ? getPlantTile(alv.plantId, stageIdx ?? 0) : null;
+              const tileImg = plantImg || terrainTile;
+
+              if (!tileImg) return null;
+
+              // Positionner l'image : le diamond top du bloc aligné sur la grille iso
+              const imgTopOffset = Math.round(blockH * diamondTopRatio);
+              const imgX = cx - blockW / 2;
+              const imgY = y - imgTopOffset;
+
+              return (
+                <g key={idx} onClick={() => onCellClick(idx)} style={{ cursor: 'pointer' }}>
+                  <image
+                    href={tileImg}
+                    x={imgX}
+                    y={imgY}
+                    width={blockW}
+                    height={blockH}
+                  />
+                  {/* Sélection */}
+                  {selectedIdx === idx && (
+                    <polygon
+                      points={`${cx},${y} ${cx+cellW/2},${y+cellH/4} ${cx},${y+cellH/2} ${cx-cellW/2},${y+cellH/4}`}
+                      fill="rgba(255,255,255,0.12)" stroke="#fff" strokeWidth={2}
+                    />
+                  )}
+                  {/* Déplacement */}
+                  {movingIdx === idx && (
+                    <>
+                      <polygon
+                        points={`${cx},${y} ${cx+cellW/2},${y+cellH/4} ${cx},${y+cellH/2} ${cx-cellW/2},${y+cellH/4}`}
+                        fill="rgba(46,204,113,0.2)" stroke="#2ecc71" strokeWidth={2} strokeDasharray="4,2"
+                      />
+                      <text x={cx} y={y - 6} textAnchor="middle" fontSize="8" fill="#2ecc71"
+                        style={{ userSelect: 'none' }}>📍</text>
+                    </>
+                  )}
+                </g>
+              );
+            })
+          )
+        ) : (
+          /* ── FALLBACK SVG : IsoTerrainBlock classique ── */
+          Array.from({length: ISO_ROWS}, (_,r) =>
+            Array.from({length: ISO_COLS}, (_,c) => {
+              const idx = r * ISO_COLS + c;
+              const {x, y} = isoXY(c, r);
+              const alv = serre.alveoles[idx];
+              const ad = serre.alveoleData?.[idx];
+              const dbPlant = alv ? PLANTS_DB.find(p => p.id === alv.plantId) : null;
+              const stage = alv ? getGrowthStage(ad?.plantedDate, dbPlant?.daysToMaturity || 60) : null;
+              const stageIdx = stage ? Math.min(Math.floor(((Date.now() - new Date(ad?.plantedDate).getTime()) / (1000 * 60 * 60 * 24)) / (dbPlant?.daysToMaturity || 60) * (GROWTH_STAGES.length - 1)), GROWTH_STAGES.length - 1) : null;
+              return (
+                <IsoTerrainBlock
+                  key={idx}
+                  cx={x + TW/2} cy={y}
+                  selected={selectedIdx === idx}
+                  isMoving={movingIdx === idx}
+                  plant={alv}
+                  stage={stage}
+                  stageIdx={stageIdx}
+                  onClick={() => onCellClick(idx)}
+                />
+              );
+            })
+          )
         )}
       </g>
     </svg>
