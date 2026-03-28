@@ -571,7 +571,7 @@ function IsoDefs() {
 }
 
 // ── BLOC TERRAIN ISOMÉTRIQUE ─────────────────────────────────────────────────
-function IsoTerrainBlock({ cx, cy, selected, plant, stage, stageIdx, onClick }) {
+function IsoTerrainBlock({ cx, cy, selected, isMoving, plant, stage, stageIdx, onClick }) {
   const hw = TW / 2;
   const hh = TH / 2;
 
@@ -705,6 +705,13 @@ function IsoTerrainBlock({ cx, cy, selected, plant, stage, stageIdx, onClick }) 
       {selected && (
         <polygon points={topPts} fill="rgba(255,255,255,0.12)" stroke="#fff" strokeWidth={2}/>
       )}
+      {/* Indicateur déplacement */}
+      {isMoving && (
+        <>
+          <polygon points={topPts} fill="rgba(46,204,113,0.2)" stroke="#2ecc71" strokeWidth={2} strokeDasharray="4,2"/>
+          <text x={cx} y={cy - 6} textAnchor="middle" fontSize="8" fill="#2ecc71" style={{ userSelect: "none" }}>📍</text>
+        </>
+      )}
     </g>
   );
 }
@@ -730,7 +737,7 @@ function IsoWoodPost({ cx, cy }) {
 }
 
 // ── MINI-SERRE ISOMÉTRIQUE COMPLÈTE ──────────────────────────────────────────
-function IsometricMiniSerre({ serre, selectedIdx, onCellClick }) {
+function IsometricMiniSerre({ serre, selectedIdx, movingIdx, onCellClick }) {
   const allPos = [];
   for (let r = 0; r < ISO_ROWS; r++)
     for (let c = 0; c < ISO_COLS; c++)
@@ -785,18 +792,6 @@ function IsometricMiniSerre({ serre, selectedIdx, onCellClick }) {
 
       <g transform={`translate(${ox},${oy})`}>
 
-        {/* DÔME VITRÉ (arrière) */}
-        <rect
-          x={tl.x + TW/2 - 8}
-          y={tl.y + TH/2 + domeY}
-          width={(tr.x + TW/2 + 8) - (tl.x + TW/2 - 8)}
-          height={domeH}
-          fill="rgba(180,230,200,0.25)"
-          stroke="rgba(120,190,130,0.5)"
-          strokeWidth="2"
-          rx="6"
-        />
-
         {/* Tuiles isométriques back-to-front */}
         {Array.from({length: ISO_ROWS}, (_,r) =>
           Array.from({length: ISO_COLS}, (_,c) => {
@@ -812,6 +807,7 @@ function IsometricMiniSerre({ serre, selectedIdx, onCellClick }) {
                 key={idx}
                 cx={x + TW/2} cy={y}
                 selected={selectedIdx === idx}
+                isMoving={movingIdx === idx}
                 plant={alv}
                 stage={stage}
                 stageIdx={stageIdx}
@@ -820,50 +816,6 @@ function IsometricMiniSerre({ serre, selectedIdx, onCellClick }) {
             );
           })
         )}
-
-        {/* DÔME VITRÉ (avant - reflets) */}
-        <rect
-          x={tl.x + TW/2 - 8}
-          y={tl.y + TH/2 + domeY}
-          width={(tr.x + TW/2 + 8) - (tl.x + TW/2 - 8)}
-          height={domeH}
-          fill="url(#isoSkyGrad)"
-          fillOpacity="0.08"
-          stroke="rgba(140,210,150,0.55)"
-          strokeWidth="2"
-          rx="6"
-          style={{ pointerEvents: "none" }}
-        />
-
-        {/* Traverses du toit */}
-        <g opacity={0.6}>
-          <line x1={tl.x+TW/2} y1={tl.y+TH/2+domeY} x2={tr.x+TW/2} y2={tr.y+TH/2+domeY}
-            stroke="#8a6030" strokeWidth={2} strokeDasharray="4,2"/>
-          <line x1={tl.x+TW/2} y1={tl.y+TH/2+domeY} x2={bl.x+TW/2} y2={bl.y+TH/2+domeY+8}
-            stroke="#8a6030" strokeWidth={2} strokeDasharray="4,2"/>
-          <line x1={tr.x+TW/2} y1={tr.y+TH/2+domeY} x2={br.x+TW/2} y2={br.y+TH/2+domeY+8}
-            stroke="#8a6030" strokeWidth={2} strokeDasharray="4,2"/>
-        </g>
-
-        {/* Label LIDL */}
-        <rect
-          x={(tl.x+tr.x)/2 + TW/2 - 22}
-          y={tl.y + TH/2 + domeY - 14}
-          width={44}
-          height={12}
-          fill="#e63946"
-          rx="2"
-        />
-        <text
-          x={(tl.x+tr.x)/2 + TW/2}
-          y={tl.y + TH/2 + domeY - 5}
-          textAnchor="middle"
-          fontSize="8"
-          fontWeight="800"
-          fill="#fff"
-          fontFamily="Arial, sans-serif"
-          letterSpacing="2"
-        >LIDL</text>
       </g>
     </svg>
   );
@@ -1016,15 +968,49 @@ function SowingScreen({ serres, onAddSerre, onSow }) {
 }
 
 // ─── SERRE SCREEN ──────────────────────────────────────────────────────────────
-function SerreScreen({ serres, onAddSerre, onTransplant }) {
+function SerreScreen({ serres, onAddSerre, onTransplant, onRemoveSerreSeed, onMoveSerreSeed }) {
   const [newName, setNewName] = useState('');
   const [showAdd, setShowAdd] = useState(false);
   const [selectedAlv, setSelectedAlv] = useState(null);
   const [showTransplant, setShowTransplant] = useState(false);
+  const [movingFromIdx, setMovingFromIdx] = useState(null);
+  const [showChange, setShowChange] = useState(false);
   const tick = useRealtimeGrowth();
+
+  // Gère le clic sur une cellule
+  const handleCellClick = (idx, serre) => {
+    const alv = serre.alveoles[idx];
+
+    // Si on est en mode déplacement
+    if (movingFromIdx !== null) {
+      if (movingFromIdx !== idx) {
+        onMoveSerreSeed(serre.id, movingFromIdx, idx);
+      }
+      setMovingFromIdx(null);
+      return;
+    }
+
+    // Clic sur alvéole occupée
+    if (alv) {
+      setSelectedAlv({ serreId: serre.id, idx });
+      setShowTransplant(true);
+      setShowChange(false);
+    } else {
+      // Clic sur alvéole vide → vider sélection
+      setSelectedAlv(null);
+      setShowTransplant(false);
+      setShowChange(false);
+    }
+  };
 
   return (
     <div>
+      {/* Mode déplacement actif */}
+      {movingFromIdx !== null && (
+        <div style={{ marginBottom: 10, padding: '8px 12px', background: 'rgba(46,204,113,0.15)', border: '1px solid rgba(46,204,113,0.4)', borderRadius: 8, fontSize: 12, color: '#2ecc71' }}>
+          📍 Mode déplacement actif — clique sur une alvéole cible (ou même pour annuler)
+        </div>
+      )}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
         <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.5)' }}>{serres.length} mini serre{serres.length > 1 ? 's' : ''}</div>
         <div onClick={() => setShowAdd(!showAdd)} style={{ padding: '6px 12px', borderRadius: 8, border: '1px dashed rgba(255,255,255,0.2)', color: 'rgba(255,255,255,0.5)', fontSize: 12, cursor: 'pointer' }}>+ Ajouter une serre</div>
@@ -1041,11 +1027,7 @@ function SerreScreen({ serres, onAddSerre, onTransplant }) {
             🏠 {serre.name}
             <span style={{ marginLeft: 8, fontSize: 10, color: 'rgba(255,255,255,0.3)', fontWeight: 400 }}>4×6 alvéoles · {serre.alveoles.filter(Boolean).length} occupées</span>
           </div>
-          <IsometricMiniSerre key={tick} serre={serre} selectedIdx={selectedAlv?.serreId === serre.id ? selectedAlv.idx : null} onCellClick={(idx) => {
-            const alv = serre.alveoles[idx];
-            if (alv) { setSelectedAlv({ serreId: serre.id, idx }); setShowTransplant(true); }
-            else { setSelectedAlv(null); setShowTransplant(false); }
-          }} />
+          <IsometricMiniSerre key={tick} serre={serre} selectedIdx={selectedAlv?.serreId === serre.id ? selectedAlv.idx : null} movingIdx={movingFromIdx !== null && selectedAlv?.serreId === serre.id ? movingFromIdx : null} onCellClick={(idx) => handleCellClick(idx, serre)} />
           {showTransplant && selectedAlv?.serreId === serre.id && (() => {
             const alv = serre.alveoles[selectedAlv.idx];
             const ad = serre.alveoleData?.[selectedAlv.idx];
@@ -1077,7 +1059,12 @@ function SerreScreen({ serres, onAddSerre, onTransplant }) {
                   🌡️ {dbPlant.needs.sun === 'full' ? '☀️' : dbPlant.needs.sun === 'partial' ? '⛅' : '🌤'} {dbPlant.needs.temp.min}–{dbPlant.needs.temp.max}°C
                   <br />💧 Espacement: {dbPlant.spacing.between}cm · Rendement: {dbPlant.yield.min}–{dbPlant.yield.max} {dbPlant.yield.unit}
                 </div>
-                <div onClick={() => { onTransplant(serre.id, selectedAlv.idx); setShowTransplant(false); setSelectedAlv(null); }} style={{ ...S.primaryBtn, background: plant.color, padding: '8px 0', fontSize: 12 }}>🌍 Repiquer au jardin</div>
+                {/* Actions */}
+                <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                  <div onClick={() => { onTransplant(serre.id, selectedAlv.idx); setShowTransplant(false); setSelectedAlv(null); }} style={{ ...S.primaryBtn, background: plant.color, padding: '8px 0', fontSize: 11, flex: 1 }}>🌍 Repiquer</div>
+                  <div onClick={() => { setMovingFromIdx(selectedAlv.idx); setShowTransplant(false); }} style={{ ...S.primaryBtn, background: 'rgba(255,255,255,0.1)', padding: '8px 0', fontSize: 11, flex: 1, border: '1px solid rgba(255,255,255,0.2)' }}>📍 Déplacer</div>
+                  <div onClick={() => { onRemoveSerreSeed(serre.id, selectedAlv.idx); setShowTransplant(false); setSelectedAlv(null); }} style={{ ...S.primaryBtn, background: 'rgba(220,53,69,0.2)', padding: '8px 0', fontSize: 11, flex: 1, border: '1px solid rgba(220,53,69,0.4)' }}>🗑️ Supprimer</div>
+                </div>
               </div>
             );
           })()}
@@ -2097,6 +2084,38 @@ export default function App() {
     setTab('jardin');
   }, [gardenArea]);
 
+  const handleRemoveSerreSeed = useCallback((serreId, alvIdx) => {
+    setSerres(prev => prev.map(s => {
+      if (s.id !== serreId) return s;
+      const alveoles = [...s.alveoles];
+      const alveoleData = { ...(s.alveoleData || {}) };
+      alveoles[alvIdx] = null;
+      delete alveoleData[alvIdx];
+      return { ...s, alveoles, alveoleData };
+    }));
+    showToast('🗑️ Graine supprimée');
+  }, []);
+
+  const handleMoveSerreSeed = useCallback((serreId, fromIdx, toIdx) => {
+    if (fromIdx === toIdx) return;
+    setSerres(prev => prev.map(s => {
+      if (s.id !== serreId) return s;
+      const alveoles = [...s.alveoles];
+      const alveoleData = { ...(s.alveoleData || {}) };
+      if (alveoles[toIdx] !== null) return prev; // destination must be empty
+      const temp = alveoles[fromIdx];
+      alveoles[fromIdx] = null;
+      alveoles[toIdx] = temp;
+      // Move alveoleData
+      if (alveoleData[fromIdx]) {
+        alveoleData[toIdx] = alveoleData[fromIdx];
+        delete alveoleData[fromIdx];
+      }
+      return { ...s, alveoles, alveoleData };
+    }));
+    showToast('✓ Graine déplacée');
+  }, []);
+
   const handleMove = useCallback((fromRow, fromCol, toRow, toCol) => {
     setGardenGrid(prev => {
       const ng = prev.map(r => [...r]);
@@ -2153,7 +2172,7 @@ export default function App() {
       </div>
 
       <div style={{ padding: '14px 20px 0' }}>
-        {tab === 'serres' && <SerreScreen serres={serres} onAddSerre={addSerre} onTransplant={handleTransplant} />}
+        {tab === 'serres' && <SerreScreen serres={serres} onAddSerre={addSerre} onTransplant={handleTransplant} onRemoveSerreSeed={handleRemoveSerreSeed} onMoveSerreSeed={handleMoveSerreSeed} />}
         {tab === 'jardin' && <GardenScreen grid={gardenGrid} onMove={handleMove} gardenArea={gardenArea} />}
         {tab === 'real_garden' && <GardenRealScreen permanentPlants={permanentPlants} onAddPermanent={(obj) => { setPermanentPlants(p => [...p, obj]); showToast(`🌳 ${obj.name} ajouté au jardin !`); }} onRemovePermanent={(uid) => { setPermanentPlants(p => p.filter(x => x.uid !== uid)); showToast('🗑️ Élément retiré'); }} />}
         {tab === 'semer' && <SowingScreen serres={serres} onAddSerre={addSerre} onSow={handleSow} />}
