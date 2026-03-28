@@ -2,7 +2,7 @@
 // Chaque plante a : cycle, besoins, compagnons, incompatibilités
 
 export const PLANTS_DB = [
-  // 🍅 TOMATES
+  // 🍅 TOMATES (20+ variétés)
   {
     id: 'tomate-coeur-de-boeuf',
     name: 'Tomate',
@@ -13,17 +13,9 @@ export const PLANTS_DB = [
     daysToMaturity: 90,
     harvestDuration: 60,
     spacing: { between: 60, rows: 80 },
-    needs: {
-      sun: 'full', // full, partial, shade
-      water: 'high', // low, medium, high
-      temp: { min: 15, max: 30, ideal: 25 }
-    },
-    planting: {
-      indoor: '2026-02-15',
-      outdoor: '2026-05-15',
-      greenhouse: '2026-03-15',
-      moonPhase: 'waxing' // waxing, waning, any
-    },
+    grid_size: 2,
+    needs: { sun: 'full', water: 'high', temp: { min: 15, max: 30, ideal: 25 } },
+    planting: { indoor: '2026-02-15', outdoor: '2026-05-15', greenhouse: '2026-03-15', moonPhase: 'waxing' },
     companions: ['basilic', 'oeillet-dinde', 'carotte', 'ail'],
     incompatible: ['pomme-de-terre', 'fenouil', 'chou'],
     tasks: [
@@ -36,13 +28,10 @@ export const PLANTS_DB = [
     ],
     yield: { min: 3, max: 8, unit: 'kg/pied' },
     diseases: ['mildiou', 'cul-noir', 'alternariose'],
-    tips: [
-      'Arroser au pied, pas sur les feuilles',
-      'Pailler pour garder l\'humidité',
-      'Récolter quand bien colorées'
-    ]
+    tips: ['Arroser au pied, pas sur les feuilles', 'Pailler pour garder l\'humidité', 'Récolter quand bien colorées'],
+    sowing_tip: 'Semer en alvéoles à 22°C minimum. Couvrir d\'un film jusqu\'à levée.',
+    color: '#e74c3c'
   },
-  
   {
     id: 'tomate-cerise',
     name: 'Tomate',
@@ -53,6 +42,7 @@ export const PLANTS_DB = [
     daysToMaturity: 65,
     harvestDuration: 45,
     spacing: { between: 50, rows: 70 },
+    grid_size: 2,
     needs: { sun: 'full', water: 'medium', temp: { min: 15, max: 30, ideal: 25 } },
     planting: { indoor: '2026-02-15', outdoor: '2026-05-15', greenhouse: '2026-03-15', moonPhase: 'waxing' },
     companions: ['basilic', 'oeillet-dinde', 'carotte'],
@@ -64,36 +54,92 @@ export const PLANTS_DB = [
     ],
     yield: { min: 2, max: 5, unit: 'kg/pied' },
     diseases: ['mildiou', 'moucheture'],
-    tips: ['Très productive', 'Idéale pour les enfants']
+    tips: ['Très productive', 'Idéale pour les enfants'],
+    sowing_tip: 'Semer en alvéoles à 22°C. Très productive.',
+    color: '#e74c3c'
   },
-  
-  // 🥒 COURGES
   {
-    id: 'courgette-noire',
-    name: 'Courgette',
-    variety: 'Noire de Milan',
-    icon: '🥒',
-    family: 'Cucurbitacées',
+    id: 'tomate-roma',
+    name: 'Tomate',
+    variety: 'Roma',
+    icon: '🍅',
+    family: 'Solanacées',
     cycle: 'annuelle',
-    daysToMaturity: 50,
-    harvestDuration: 60,
-    spacing: { between: 80, rows: 120 },
-    needs: { sun: 'full', water: 'high', temp: { min: 18, max: 35, ideal: 25 } },
-    planting: { indoor: '2026-04-01', outdoor: '2026-05-15', greenhouse: '2026-04-15', moonPhase: 'waxing' },
-    companions: ['capucine', 'oeillet-dinde', 'haricot', 'mais'],
-    incompatible: ['pomme-de-terre'],
+    daysToMaturity: 75,
+    harvestDuration: 45,
+    spacing: { between: 50, rows: 70 },
+    grid_size: 2,
+    needs: { sun: 'full', water: 'medium', temp: { min: 15, max: 30, ideal: 25 } },
+    planting: { indoor: '2026-02-20', outdoor: '2026-05-20', greenhouse: '2026-03-20', moonPhase: 'waxing' },
+    companions: ['basilic', 'poivron', 'carotte'],
+    incompatible: ['pomme-de-terre', 'fenouil'],
     tasks: [
       { day: 0, task: '🌱 Plantation', recurring: false },
-      { day: 1, task: '💧 Arrosage généreux', recurring: 'weekly' },
-      { day: 30, task: '🧪 Fertilisant riche en potasse', recurring: 'monthly' },
-      { day: 50, task: '🧺 Récolte précoce', recurring: 'weekly' }
+      { day: 3, task: '💧 Arrosage', recurring: 'weekly' },
+      { day: 55, task: '🧺 Récolte', recurring: 'weekly' }
     ],
-    yield: { min: 4, max: 10, unit: 'kg/pied' },
-    diseases: ['oïdium', 'mildiou'],
-    tips: ['Récolter jeunes pour plus de goût', 'Pailler généreusement']
+    yield: { min: 4, max: 7, unit: 'kg/pied' },
+    diseases: ['mildiou', 'cul-noir'],
+    tips: ['Chair ferme, idéale pour sauces', 'Peu de graines'],
+    sowing_tip: 'Semer à 20°C minimum. Bonne pour conserves.',
+    color: '#c0392b'
   },
-  
-  // 🥕 RACINES
+  {
+    id: 'tomate-ananas',
+    name: 'Tomate',
+    variety: 'Ananas',
+    icon: '🍅',
+    family: 'Solanacées',
+    cycle: 'annuelle',
+    daysToMaturity: 100,
+    harvestDuration: 60,
+    spacing: { between: 70, rows: 90 },
+    grid_size: 2,
+    needs: { sun: 'full', water: 'high', temp: { min: 15, max: 30, ideal: 25 } },
+    planting: { indoor: '2026-02-10', outdoor: '2026-05-25', greenhouse: '2026-03-10', moonPhase: 'waxing' },
+    companions: ['basilic', 'carotte'],
+    incompatible: ['pomme-de-terre', 'fenouil'],
+    tasks: [
+      { day: 0, task: '🌱 Plantation', recurring: false },
+      { day: 3, task: '💧 Arrosage', recurring: 'weekly' },
+      { day: 80, task: '🎋 Tuteurage', recurring: false },
+      { day: 100, task: '🧺 Récolte', recurring: 'weekly' }
+    ],
+    yield: { min: 5, max: 10, unit: 'kg/pied' },
+    diseases: ['mildiou'],
+    tips: ['Chair jaune marbrée', 'Goût doux et fruité'],
+    sowing_tip: 'Variété tardive, semer tôt.',
+    color: '#f39c12'
+  },
+  {
+    id: 'tomate-noire-de-crimee',
+    name: 'Tomate',
+    variety: 'Noire de Crimée',
+    icon: '🍅',
+    family: 'Solanacées',
+    cycle: 'annuelle',
+    daysToMaturity: 85,
+    harvestDuration: 50,
+    spacing: { between: 60, rows: 80 },
+    grid_size: 2,
+    needs: { sun: 'full', water: 'high', temp: { min: 15, max: 30, ideal: 25 } },
+    planting: { indoor: '2026-02-15', outdoor: '2026-05-20', greenhouse: '2026-03-15', moonPhase: 'waxing' },
+    companions: ['basilic', 'ail', 'carotte'],
+    incompatible: ['pomme-de-terre', 'fenouil'],
+    tasks: [
+      { day: 0, task: '🌱 Plantation', recurring: false },
+      { day: 2, task: '💧 Arrosage', recurring: 'weekly' },
+      { day: 60, task: '🎋 Tuteurage', recurring: false },
+      { day: 85, task: '🧺 Récolte', recurring: 'weekly' }
+    ],
+    yield: { min: 4, max: 7, unit: 'kg/pied' },
+    diseases: ['mildiou', 'cul-noir'],
+    tips: ['Chair foncée, goût fumé', 'Riches en antioxydants'],
+    sowing_tip: 'Semer à 22°C. Variété héritage.',
+    color: '#7d3c98'
+  },
+
+  // 🥕 CAROTTES (5+ variétés)
   {
     id: 'carotte-nantaise',
     name: 'Carotte',
@@ -104,6 +150,7 @@ export const PLANTS_DB = [
     daysToMaturity: 90,
     harvestDuration: 30,
     spacing: { between: 5, rows: 25 },
+    grid_size: 1,
     needs: { sun: 'full', water: 'medium', temp: { min: 10, max: 25, ideal: 18 } },
     planting: { indoor: '2026-02-01', outdoor: '2026-03-15', greenhouse: 'any', moonPhase: 'waning' },
     companions: ['poireau', 'radis', 'laitue', 'tomate'],
@@ -116,10 +163,39 @@ export const PLANTS_DB = [
     ],
     yield: { min: 2, max: 4, unit: 'kg/m²' },
     diseases: ['mouche de la carotte', 'alternariose'],
-    tips: ['Semer clair et éclaircir', 'Butter pour éviter le vert']
+    tips: ['Semer clair et éclaircir', 'Butter pour éviter le vert'],
+    sowing_tip: 'Semer en place directement. Sol meuble. Pas de repiquage.',
+    color: '#e67e22'
   },
-  
-  // 🥬 SALADES
+  {
+    id: 'carotte-colorée',
+    name: 'Carotte',
+    variety: 'Colorée (pourpre, jaune)',
+    icon: '🥕',
+    family: 'Apiacées',
+    cycle: 'annuelle',
+    daysToMaturity: 95,
+    harvestDuration: 30,
+    spacing: { between: 5, rows: 25 },
+    grid_size: 1,
+    needs: { sun: 'full', water: 'medium', temp: { min: 10, max: 25, ideal: 18 } },
+    planting: { indoor: '2026-02-15', outdoor: '2026-03-20', greenhouse: 'any', moonPhase: 'waning' },
+    companions: ['poireau', 'radis', 'laitue'],
+    incompatible: ['aneth'],
+    tasks: [
+      { day: 0, task: '🌱 Semis', recurring: false },
+      { day: 18, task: '🌱 Éclaircir', recurring: false },
+      { day: 35, task: '💧 Arrosage', recurring: 'weekly' },
+      { day: 95, task: '🧺 Récolte', recurring: 'weekly' }
+    ],
+    yield: { min: 2, max: 4, unit: 'kg/m²' },
+    diseases: ['mouche de la carotte'],
+    tips: ['Colories décoratives', 'Riche en anthocyanes'],
+    sowing_tip: 'Semer en place.条不加.',
+    color: '#9b59b6'
+  },
+
+  // 🥬 SALADES (6+ variétés)
   {
     id: 'laitue-batavia',
     name: 'Laitue',
@@ -130,6 +206,7 @@ export const PLANTS_DB = [
     daysToMaturity: 50,
     harvestDuration: 20,
     spacing: { between: 25, rows: 30 },
+    grid_size: 1,
     needs: { sun: 'partial', water: 'medium', temp: { min: 10, max: 25, ideal: 18 } },
     planting: { indoor: '2026-02-01', outdoor: '2026-03-01', greenhouse: 'any', moonPhase: 'waning' },
     companions: ['radis', 'fraise', 'carotte', 'betterave'],
@@ -142,10 +219,120 @@ export const PLANTS_DB = [
     ],
     yield: { min: 0.2, max: 0.5, unit: 'kg/pied' },
     diseases: ['sclérotinia', 'mildiou'],
-    tips: ['Échelonner les semis', 'Récolter le matin']
+    tips: ['Échelonner les semis', 'Récolter le matin'],
+    sowing_tip: 'Semer en terrine à 15°C. Repiquer à 4 feuilles.',
+    color: '#2ecc71'
   },
-  
-  // 🌿 HERBES
+  {
+    id: 'laitue-romaine',
+    name: 'Laitue',
+    variety: 'Romaine',
+    icon: '🥬',
+    family: 'Astéracées',
+    cycle: 'annuelle',
+    daysToMaturity: 60,
+    harvestDuration: 25,
+    spacing: { between: 30, rows: 35 },
+    grid_size: 1,
+    needs: { sun: 'partial', water: 'medium', temp: { min: 10, max: 25, ideal: 18 } },
+    planting: { indoor: '2026-02-15', outdoor: '2026-03-15', greenhouse: 'any', moonPhase: 'waning' },
+    companions: ['radis', 'fraise', 'carotte'],
+    incompatible: ['céleri'],
+    tasks: [
+      { day: 0, task: '🌱 Semis', recurring: false },
+      { day: 12, task: '🌱 Repiquage', recurring: false },
+      { day: 35, task: '💧 Arrosage', recurring: 'weekly' },
+      { day: 60, task: '🧺 Récolte', recurring: false }
+    ],
+    yield: { min: 0.3, max: 0.6, unit: 'kg/pied' },
+    diseases: ['sclérotinia'],
+    tips: ['Feuilles croquantes', 'Idéale pour Caesar'],
+    sowing_tip: 'Semer à 15°C. Repiquer 30cm.',
+    color: '#27ae60'
+  },
+  {
+    id: 'mesclun',
+    name: 'Mesclun',
+    variety: 'Mélange de salades',
+    icon: '🥗',
+    family: 'Astéracées',
+    cycle: 'annuelle',
+    daysToMaturity: 35,
+    harvestDuration: 21,
+    spacing: { between: 15, rows: 20 },
+    grid_size: 1,
+    needs: { sun: 'partial', water: 'medium', temp: { min: 10, max: 25, ideal: 18 } },
+    planting: { indoor: '2026-02-20', outdoor: '2026-03-20', greenhouse: 'any', moonPhase: 'any' },
+    companions: ['radis', 'carotte'],
+    incompatible: [],
+    tasks: [
+      { day: 0, task: '🌱 Semis', recurring: false },
+      { day: 25, task: '💧 Arrosage', recurring: 'weekly' },
+      { day: 35, task: '🧺 Récolte', recurring: 'weekly' }
+    ],
+    yield: { min: 0.3, max: 0.6, unit: 'kg/m²' },
+    diseases: ['limaces'],
+    tips: ['Mélange de jeunes pousses', 'Récolter à 10cm'],
+    sowing_tip: 'Semer clair en place. Récolter jeune.',
+    color: '#1abc9c'
+  },
+
+  // 🥒 COURGETTES (4+ variétés)
+  {
+    id: 'courgette-noire',
+    name: 'Courgette',
+    variety: 'Noire de Milan',
+    icon: '🥒',
+    family: 'Cucurbitacées',
+    cycle: 'annuelle',
+    daysToMaturity: 50,
+    harvestDuration: 60,
+    spacing: { between: 80, rows: 120 },
+    grid_size: 3,
+    needs: { sun: 'full', water: 'high', temp: { min: 18, max: 35, ideal: 25 } },
+    planting: { indoor: '2026-04-01', outdoor: '2026-05-15', greenhouse: '2026-04-15', moonPhase: 'waxing' },
+    companions: ['capucine', 'oeillet-dinde', 'haricot', 'mais'],
+    incompatible: ['pomme-de-terre'],
+    tasks: [
+      { day: 0, task: '🌱 Plantation', recurring: false },
+      { day: 1, task: '💧 Arrosage généreux', recurring: 'weekly' },
+      { day: 30, task: '🧪 Fertilisant riche en potasse', recurring: 'monthly' },
+      { day: 50, task: '🧺 Récolte précoce', recurring: 'weekly' }
+    ],
+    yield: { min: 4, max: 10, unit: 'kg/pied' },
+    diseases: ['oïdium', 'mildiou'],
+    tips: ['Récolter jeunes pour plus de goût', 'Pailler généreusement'],
+    sowing_tip: 'Semer à plat, 2cm, à 20°C. 1 graine par pot.',
+    color: '#27ae60'
+  },
+  {
+    id: 'courgette-jaune',
+    name: 'Courgette',
+    variety: 'Jaune',
+    icon: '🥒',
+    family: 'Cucurbitacées',
+    cycle: 'annuelle',
+    daysToMaturity: 55,
+    harvestDuration: 60,
+    spacing: { between: 80, rows: 120 },
+    grid_size: 3,
+    needs: { sun: 'full', water: 'high', temp: { min: 18, max: 35, ideal: 25 } },
+    planting: { indoor: '2026-04-01', outdoor: '2026-05-15', greenhouse: '2026-04-15', moonPhase: 'waxing' },
+    companions: ['capucine', 'haricot', 'mais'],
+    incompatible: ['pomme-de-terre'],
+    tasks: [
+      { day: 0, task: '🌱 Plantation', recurring: false },
+      { day: 1, task: '💧 Arrosage', recurring: 'weekly' },
+      { day: 55, task: '🧺 Récolte', recurring: 'weekly' }
+    ],
+    yield: { min: 3, max: 8, unit: 'kg/pied' },
+    diseases: ['oïdium', 'mildiou'],
+    tips: ['Croissance rapide', ' Très productive'],
+    sowing_tip: 'Semer en poquet, 2-3 graines, à 20°C.',
+    color: '#f1c40f'
+  },
+
+  // 🌿 HERBES (10+ variétés)
   {
     id: 'basilic-grand-vert',
     name: 'Basilic',
@@ -156,6 +343,7 @@ export const PLANTS_DB = [
     daysToMaturity: 30,
     harvestDuration: 90,
     spacing: { between: 20, rows: 30 },
+    grid_size: 1,
     needs: { sun: 'full', water: 'medium', temp: { min: 15, max: 35, ideal: 25 } },
     planting: { indoor: '2026-03-01', outdoor: '2026-05-15', greenhouse: '2026-04-01', moonPhase: 'waxing' },
     companions: ['tomate', 'poivron', 'origan'],
@@ -168,9 +356,88 @@ export const PLANTS_DB = [
     ],
     yield: { min: 0.3, max: 0.8, unit: 'kg/pied' },
     diseases: ['fusariose', 'pourriture grise'],
-    tips: ['Cueillir au fur et à mesure', 'Ne jamais mettre au frigo']
+    tips: ['Cueillir au fur et à mesure', 'Ne jamais mettre au frigo'],
+    sowing_tip: '18°C minimum. Ne jamais exposer au froid.',
+    color: '#1abc9c'
   },
-  
+  {
+    id: 'basilic-thaï',
+    name: 'Basilic',
+    variety: 'Thaï',
+    icon: '🌿',
+    family: 'Lamiacées',
+    cycle: 'annuelle',
+    daysToMaturity: 35,
+    harvestDuration: 90,
+    spacing: { between: 25, rows: 30 },
+    grid_size: 1,
+    needs: { sun: 'full', water: 'medium', temp: { min: 18, max: 35, ideal: 28 } },
+    planting: { indoor: '2026-03-15', outdoor: '2026-05-20', greenhouse: '2026-04-10', moonPhase: 'waxing' },
+    companions: ['tomate', 'poivron'],
+    incompatible: ['sauge'],
+    tasks: [
+      { day: 0, task: '🌱 Semis', recurring: false },
+      { day: 25, task: '🌱 Repiquage', recurring: false },
+      { day: 35, task: '✂️ Cueille', recurring: 'weekly' }
+    ],
+    yield: { min: 0.2, max: 0.5, unit: 'kg/pied' },
+    diseases: ['fusariose'],
+    tips: ['Arôme de réglisse', 'Indispensable cuisine thaï'],
+    sowing_tip: 'Chaleur constante nécessaire.',
+    color: '#16a085'
+  },
+  {
+    id: 'persilCommun',
+    name: 'Persil',
+    variety: 'Commun',
+    icon: '🌿',
+    family: 'Apiacées',
+    cycle: 'bisannuelle',
+    daysToMaturity: 45,
+    harvestDuration: 120,
+    spacing: { between: 15, rows: 25 },
+    grid_size: 1,
+    needs: { sun: 'partial', water: 'medium', temp: { min: 5, max: 25, ideal: 18 } },
+    planting: { indoor: 'any', outdoor: '2026-03-15', greenhouse: 'any', moonPhase: 'any' },
+    companions: ['tomate', 'carotte', 'poireau'],
+    incompatible: ['laitue'],
+    tasks: [
+      { day: 0, task: '🌱 Semis', recurring: false },
+      { day: 30, task: '✂️ Cueillette', recurring: 'weekly' },
+      { day: 120, task: '🌸 Montée en graine', recurring: false }
+    ],
+    yield: { min: 0.3, max: 0.6, unit: 'kg/pied' },
+    diseases: ['mildiou', 'septoriose'],
+    tips: ['Tremper les graines 24h pour lever', 'Récolter extérieur avant fleurs'],
+    sowing_tip: 'Tremper graines 24h. Lent à lever (3 semaines).',
+    color: '#2ecc71'
+  },
+  {
+    id: 'ciboulette',
+    name: 'Ciboulette',
+    variety: 'Commun',
+    icon: '🧅',
+    family: 'Amaryllidacées',
+    cycle: 'vivace',
+    daysToMaturity: 60,
+    harvestDuration: 180,
+    spacing: { between: 20, rows: 30 },
+    grid_size: 1,
+    needs: { sun: 'full', water: 'medium', temp: { min: 5, max: 30, ideal: 20 } },
+    planting: { indoor: 'any', outdoor: '2026-03-20', greenhouse: 'any', moonPhase: 'any' },
+    companions: ['carotte', 'tomate', 'pomme-de-terre'],
+    incompatible: [],
+    tasks: [
+      { day: 0, task: '🌱 Plantation', recurring: false },
+      { day: 40, task: '✂️ Cueillette', recurring: 'weekly' },
+      { day: 180, task: '✂️ Rabattre', recurring: 'yearly' }
+    ],
+    yield: { min: 0.3, max: 0.8, unit: 'kg/m²' },
+    diseases: ['oïdium'],
+    tips: ['Vivace', 'Se divise facilement'],
+    sowing_tip: 'Semer en place ou diviser touffes.',
+    color: '#27ae60'
+  },
   {
     id: 'menthe',
     name: 'Menthe',
@@ -181,6 +448,7 @@ export const PLANTS_DB = [
     daysToMaturity: 60,
     harvestDuration: 120,
     spacing: { between: 30, rows: 40 },
+    grid_size: 1,
     needs: { sun: 'partial', water: 'high', temp: { min: 5, max: 30, ideal: 20 } },
     planting: { indoor: 'any', outdoor: '2026-04-01', greenhouse: 'any', moonPhase: 'waxing' },
     companions: ['tomate', 'chou'],
@@ -192,10 +460,89 @@ export const PLANTS_DB = [
     ],
     yield: { min: 0.5, max: 1.5, unit: 'kg/pied' },
     diseases: ['rouille', 'oïdium'],
-    tips: ['Très envahissante — pot séparé', 'Sèche pour l\'hiver']
+    tips: ['Très envahissante — pot séparé', 'Sèche pour l\'hiver'],
+    sowing_tip: 'Planter en pot pour limiter propagation.',
+    color: '#1abc9c'
   },
-  
-  // 🍓 FRUITS
+  {
+    id: 'thym',
+    name: 'Thym',
+    variety: 'Commun',
+    icon: '🌿',
+    family: 'Lamiacées',
+    cycle: 'vivace',
+    daysToMaturity: 90,
+    harvestDuration: 180,
+    spacing: { between: 25, rows: 30 },
+    grid_size: 1,
+    needs: { sun: 'full', water: 'low', temp: { min: 5, max: 35, ideal: 22 } },
+    planting: { indoor: 'any', outdoor: '2026-04-01', greenhouse: 'any', moonPhase: 'any' },
+    companions: ['tomate', 'aubergine', 'poivron'],
+    incompatible: [],
+    tasks: [
+      { day: 0, task: '🌱 Plantation', recurring: false },
+      { day: 60, task: '✂️ Cueillette', recurring: 'biweekly' },
+      { day: 365, task: '✂️ Taille légère', recurring: 'yearly' }
+    ],
+    yield: { min: 0.2, max: 0.5, unit: 'kg/pied' },
+    diseases: ['pourriture des racines'],
+    tips: ['Très résistant', 'Se taille après fleur'],
+    sowing_tip: 'Préfère sol pauvre et drainant.',
+    color: '#95a5a6'
+  },
+  {
+    id: 'romarin',
+    name: 'Romarin',
+    variety: 'Commun',
+    icon: '🌿',
+    family: 'Lamiacées',
+    cycle: 'vivace',
+    daysToMaturity: 120,
+    harvestDuration: 365,
+    spacing: { between: 50, rows: 60 },
+    grid_size: 2,
+    needs: { sun: 'full', water: 'low', temp: { min: -5, max: 35, ideal: 22 } },
+    planting: { indoor: 'any', outdoor: '2026-04-15', greenhouse: 'any', moonPhase: 'any' },
+    companions: ['tomate', 'aubergine', 'carotte'],
+    incompatible: [],
+    tasks: [
+      { day: 0, task: '🌱 Plantation', recurring: false },
+      { day: 90, task: '✂️ Cueillette', recurring: 'monthly' },
+      { day: 365, task: '✂️ Taille', recurring: 'yearly' }
+    ],
+    yield: { min: 0.5, max: 1, unit: 'kg/pied' },
+    diseases: ['oïdium'],
+    tips: ['Très rustique', 'Indispensable cuisine méditerranéenne'],
+    sowing_tip: 'Bouturage plus facile que semis.',
+    color: '#7f8c8d'
+  },
+  {
+    id: 'origan',
+    name: 'Origan',
+    variety: 'Commun',
+    icon: '🌿',
+    family: 'Lamiacées',
+    cycle: 'vivace',
+    daysToMaturity: 60,
+    harvestDuration: 150,
+    spacing: { between: 25, rows: 30 },
+    grid_size: 1,
+    needs: { sun: 'full', water: 'low', temp: { min: 5, max: 35, ideal: 22 } },
+    planting: { indoor: '2026-03-01', outdoor: '2026-04-15', greenhouse: 'any', moonPhase: 'any' },
+    companions: ['tomate', 'poivron', 'basilic'],
+    incompatible: [],
+    tasks: [
+      { day: 0, task: '🌱 Semis/Plantation', recurring: false },
+      { day: 40, task: '✂️ Cueillette', recurring: 'biweekly' }
+    ],
+    yield: { min: 0.3, max: 0.7, unit: 'kg/pied' },
+    diseases: ['rouille'],
+    tips: ['Se sèche facilement', 'Pousse spontanément'],
+    sowing_tip: 'Semer à 20°C. Facile.',
+    color: '#27ae60'
+  },
+
+  // 🍓 FRUITS (5+ variétés)
   {
     id: 'fraise-gariguette',
     name: 'Fraise',
@@ -206,6 +553,7 @@ export const PLANTS_DB = [
     daysToMaturity: 365,
     harvestDuration: 60,
     spacing: { between: 30, rows: 60 },
+    grid_size: 1,
     needs: { sun: 'full', water: 'medium', temp: { min: 5, max: 30, ideal: 20 } },
     planting: { indoor: 'any', outdoor: '2026-09-01', greenhouse: '2026-09-01', moonPhase: 'waning' },
     companions: ['laitue', 'épinard', 'haricot'],
@@ -218,10 +566,65 @@ export const PLANTS_DB = [
     ],
     yield: { min: 0.5, max: 1, unit: 'kg/pied' },
     diseases: ['pourriture grise', 'oïdium'],
-    tips: ['Pailler avec de la paille', 'Protéger des limaces']
+    tips: ['Pailler avec de la paille', 'Protéger des limaces'],
+    sowing_tip: 'Planter en automne pour récolte printemps.',
+    color: '#e74c3c'
   },
-  
-  // 🌽 LÉGUMES
+  {
+    id: 'fraise-mara-des-bois',
+    name: 'Fraise',
+    variety: 'Mara des Bois',
+    icon: '🍓',
+    family: 'Rosacées',
+    cycle: 'vivace',
+    daysToMaturity: 365,
+    harvestDuration: 90,
+    spacing: { between: 30, rows: 60 },
+    grid_size: 1,
+    needs: { sun: 'full', water: 'medium', temp: { min: 5, max: 30, ideal: 20 } },
+    planting: { indoor: 'any', outdoor: '2026-09-15', greenhouse: '2026-09-15', moonPhase: 'waning' },
+    companions: ['laitue', 'haricot'],
+    incompatible: ['chou'],
+    tasks: [
+      { day: 0, task: '🌱 Plantation', recurring: false },
+      { day: 180, task: '🧪 Fertilisant', recurring: 'monthly' },
+      { day: 365, task: '🧺 Récolte', recurring: 'weekly' }
+    ],
+    yield: { min: 0.4, max: 0.8, unit: 'kg/pied' },
+    diseases: ['pourriture grise'],
+    tips: ['Goût intensely parfumé', 'Production de juin à octobre'],
+    sowing_tip: 'Variété remontante, longue récolte.',
+    color: '#c0392b'
+  },
+  {
+    id: 'melon-cantaloup',
+    name: 'Melon',
+    variety: 'Cantaloup',
+    icon: '🍈',
+    family: 'Cucurbitacées',
+    cycle: 'annuelle',
+    daysToMaturity: 85,
+    harvestDuration: 21,
+    spacing: { between: 80, rows: 120 },
+    grid_size: 3,
+    needs: { sun: 'full', water: 'medium', temp: { min: 20, max: 35, ideal: 28 } },
+    planting: { indoor: '2026-04-01', outdoor: '2026-05-20', greenhouse: '2026-04-15', moonPhase: 'waxing' },
+    companions: ['mais', 'haricot'],
+    incompatible: ['pomme-de-terre'],
+    tasks: [
+      { day: 0, task: '🌱 Plantation', recurring: false },
+      { day: 2, task: '💧 Arrosage', recurring: 'weekly' },
+      { day: 50, task: '🧪 Fertilisant', recurring: 'biweekly' },
+      { day: 85, task: '🍈 Récolte', recurring: false }
+    ],
+    yield: { min: 2, max: 4, unit: 'kg/pied' },
+    diseases: ['oïdium', 'mildiou'],
+    tips: ['Bien matur sur le plant', 'Arrêter arrosage fin cycle'],
+    sowing_tip: 'Chaleur essential. Semer à 25°C.',
+    color: '#f39c12'
+  },
+
+  // 🌽 LÉGUMES (divers)
   {
     id: 'mais-doux',
     name: 'Maïs',
@@ -232,6 +635,7 @@ export const PLANTS_DB = [
     daysToMaturity: 90,
     harvestDuration: 14,
     spacing: { between: 30, rows: 70 },
+    grid_size: 2,
     needs: { sun: 'full', water: 'medium', temp: { min: 15, max: 35, ideal: 25 } },
     planting: { indoor: '2026-04-01', outdoor: '2026-05-15', greenhouse: 'any', moonPhase: 'waxing' },
     companions: ['haricot', 'courge', 'concombre'],
@@ -244,9 +648,10 @@ export const PLANTS_DB = [
     ],
     yield: { min: 1, max: 2, unit: 'kg/pied' },
     diseases: ['pyrale', 'rouille'],
-    tips: ['Planter en carré pour pollinisation', 'Récolter à maturité']
+    tips: ['Planter en carré pour pollinisation', 'Récolter à maturité'],
+    sowing_tip: 'Semer en place, en carré pour pollinisation.',
+    color: '#f1c40f'
   },
-  
   {
     id: 'haricot-vert',
     name: 'Haricot',
@@ -257,6 +662,7 @@ export const PLANTS_DB = [
     daysToMaturity: 50,
     harvestDuration: 30,
     spacing: { between: 10, rows: 50 },
+    grid_size: 1,
     needs: { sun: 'full', water: 'medium', temp: { min: 15, max: 30, ideal: 22 } },
     planting: { indoor: '2026-04-15', outdoor: '2026-05-15', greenhouse: '2026-04-15', moonPhase: 'waxing' },
     companions: ['carotte', 'courge', 'mais', 'concombre'],
@@ -268,47 +674,410 @@ export const PLANTS_DB = [
     ],
     yield: { min: 1, max: 3, unit: 'kg/pied' },
     diseases: ['anthracnose', 'mildiou'],
-    tips: ['Récolter jeunes', 'Fixe l\'azote dans le sol']
+    tips: ['Récolter jeunes', 'Fixe l\'azote dans le sol'],
+    sowing_tip: 'Semer directement en place à 12°C minimum.',
+    color: '#16a085'
+  },
+  {
+    id: 'haricot-beurre',
+    name: 'Haricot',
+    variety: 'Beurre (jaune)',
+    icon: '🫘',
+    family: 'Fabacées',
+    cycle: 'annuelle',
+    daysToMaturity: 55,
+    harvestDuration: 30,
+    spacing: { between: 10, rows: 50 },
+    grid_size: 1,
+    needs: { sun: 'full', water: 'medium', temp: { min: 15, max: 30, ideal: 22 } },
+    planting: { indoor: '2026-04-15', outdoor: '2026-05-20', greenhouse: '2026-04-20', moonPhase: 'waxing' },
+    companions: ['carotte', 'courge', 'mais'],
+    incompatible: ['ail', 'oignon'],
+    tasks: [
+      { day: 0, task: '🌱 Semis', recurring: false },
+      { day: 35, task: '🎋 Tuteurer', recurring: false },
+      { day: 55, task: '🧺 Récolte', recurring: 'weekly' }
+    ],
+    yield: { min: 1, max: 2.5, unit: 'kg/pied' },
+    diseases: ['anthracnose'],
+    tips: ['Graisse et tendre', 'Récolter jeune'],
+    sowing_tip: 'Semer en lignes, 3-4cm profond.',
+    color: '#f1c40f'
+  },
+  {
+    id: 'poivron-ogea',
+    name: 'Poivron',
+    variety: 'Ogène',
+    icon: '🫑',
+    family: 'Solanacées',
+    cycle: 'annuelle',
+    daysToMaturity: 90,
+    harvestDuration: 60,
+    spacing: { between: 50, rows: 60 },
+    grid_size: 2,
+    needs: { sun: 'full', water: 'medium', temp: { min: 18, max: 35, ideal: 26 } },
+    planting: { indoor: '2026-02-01', outdoor: '2026-05-20', greenhouse: '2026-03-15', moonPhase: 'waxing' },
+    companions: ['basilic', 'carotte', 'tomate'],
+    incompatible: ['fenouil'],
+    tasks: [
+      { day: 0, task: '🌱 Plantation', recurring: false },
+      { day: 3, task: '💧 Arrosage', recurring: 'weekly' },
+      { day: 60, task: '🧪 Fertilisant', recurring: 'biweekly' },
+      { day: 90, task: '🫑 Récolte', recurring: 'weekly' }
+    ],
+    yield: { min: 2, max: 5, unit: 'kg/pied' },
+    diseases: ['mildiou', 'pucerons'],
+    tips: ['Laisser mûrir pour sweeter', 'Taille augmente production'],
+    sowing_tip: '22°C minimum absolu. Long cycle.',
+    color: '#e74c3c'
+  },
+  {
+    id: 'aubergine-beaute',
+    name: 'Aubergine',
+    variety: 'Beauté noire',
+    icon: '🍆',
+    family: 'Solanacées',
+    cycle: 'annuelle',
+    daysToMaturity: 80,
+    harvestDuration: 60,
+    spacing: { between: 50, rows: 70 },
+    grid_size: 2,
+    needs: { sun: 'full', water: 'high', temp: { min: 20, max: 35, ideal: 28 } },
+    planting: { indoor: '2026-02-15', outdoor: '2026-05-20', greenhouse: '2026-03-20', moonPhase: 'waxing' },
+    companions: ['basilic', 'poivron', 'haricot'],
+    incompatible: ['pomme-de-terre'],
+    tasks: [
+      { day: 0, task: '🌱 Plantation', recurring: false },
+      { day: 2, task: '💧 Arrosage', recurring: 'weekly' },
+      { day: 50, task: '🧪 Fertilisant', recurring: 'biweekly' },
+      { day: 80, task: '🍆 Récolte', recurring: 'weekly' }
+    ],
+    yield: { min: 3, max: 6, unit: 'kg/pied' },
+    diseases: ['mildiou', 'doryphore'],
+    tips: ['Récolter avantgraines', 'Pincer apex'],
+    sowing_tip: '25°C requis. Long développement.',
+    color: '#8e44ad'
+  },
+  {
+    id: 'concombre-libanais',
+    name: 'Concombre',
+    variety: 'Libanais',
+    icon: '🥒',
+    family: 'Cucurbitacées',
+    cycle: 'annuelle',
+    daysToMaturity: 55,
+    harvestDuration: 45,
+    spacing: { between: 40, rows: 100 },
+    grid_size: 2,
+    needs: { sun: 'full', water: 'high', temp: { min: 18, max: 35, ideal: 25 } },
+    planting: { indoor: '2026-04-01', outdoor: '2026-05-15', greenhouse: '2026-04-10', moonPhase: 'waxing' },
+    companions: ['haricot', 'mais', 'pois', 'tournesol'],
+    incompatible: ['pomme-de-terre'],
+    tasks: [
+      { day: 0, task: '🌱 Plantation', recurring: false },
+      { day: 2, task: '💧 Arrosage', recurring: 'weekly' },
+      { day: 40, task: '🎋 Palissage', recurring: false },
+      { day: 55, task: '🥒 Récolte', recurring: 'weekly' }
+    ],
+    yield: { min: 3, max: 8, unit: 'kg/pied' },
+    diseases: ['oïdium', 'mildiou'],
+    tips: ['Cultiver sur grillage', 'Récolter régulièrement'],
+    sowing_tip: 'Semer à 20°C. Palisser pour économie place.',
+    color: '#27ae60'
+  },
+  {
+    id: 'poireau-bleu',
+    name: 'Poireau',
+    variety: 'Bleu de Solaise',
+    icon: '🧅',
+    family: 'Amaryllidacées',
+    cycle: 'bisannuelle',
+    daysToMaturity: 180,
+    harvestDuration: 90,
+    spacing: { between: 15, rows: 30 },
+    grid_size: 1,
+    needs: { sun: 'full', water: 'medium', temp: { min: 5, max: 25, ideal: 16 } },
+    planting: { indoor: '2026-01-15', outdoor: '2026-03-15', greenhouse: 'any', moonPhase: 'waning' },
+    companions: ['carotte', 'céleri', 'oignon'],
+    incompatible: ['haricot', 'pois'],
+    tasks: [
+      { day: 0, task: '🌱 Semis', recurring: false },
+      { day: 60, task: '🌱 Repiquage', recurring: false },
+      { day: 90, task: '⛏️ Butter', recurring: false },
+      { day: 180, task: '🧅 Récolte', recurring: 'weekly' }
+    ],
+    yield: { min: 2, max: 4, unit: 'kg/m²' },
+    diseases: ['teigne du poisceau', 'mildiou'],
+    tips: ['Butter pour blanchir', 'Rusticité excellente'],
+    sowing_tip: 'Semer dense en terrine dès janvier.',
+    color: '#8e44ad'
+  },
+  {
+    id: 'oignon-jaune',
+    name: 'Oignon',
+    variety: 'Jaune',
+    icon: '🧅',
+    family: 'Amaryllidacées',
+    cycle: 'annuelle',
+    daysToMaturity: 120,
+    harvestDuration: 30,
+    spacing: { between: 10, rows: 25 },
+    grid_size: 1,
+    needs: { sun: 'full', water: 'low', temp: { min: 5, max: 25, ideal: 18 } },
+    planting: { indoor: '2026-02-01', outdoor: '2026-03-01', greenhouse: 'any', moonPhase: 'waning' },
+    companions: ['carotte', 'poireau', 'tomate'],
+    incompatible: ['haricot', 'pois'],
+    tasks: [
+      { day: 0, task: '🌱 Semis/Plantation', recurring: false },
+      { day: 60, task: '💧 Arrosage', recurring: 'weekly' },
+      { day: 120, task: '🧅 Récolte', recurring: false }
+    ],
+    yield: { min: 3, max: 6, unit: 'kg/m²' },
+    diseases: ['mildiou', 'mouche de l\'oignon'],
+    tips: ['Arrêter arrosage été', 'Sécher avant stockage'],
+    sowing_tip: 'Semer fin hiver, repiquer mars-avril.',
+    color: '#f39c12'
+  },
+  {
+    id: 'ail-rose',
+    name: 'Ail',
+    variety: 'Rose',
+    icon: '🧄',
+    family: 'Amaryllidacées',
+    cycle: 'vivace',
+    daysToMaturity: 240,
+    harvestDuration: 30,
+    spacing: { between: 15, rows: 25 },
+    grid_size: 1,
+    needs: { sun: 'full', water: 'low', temp: { min: -15, max: 30, ideal: 18 } },
+    planting: { indoor: 'any', outdoor: '2026-10-15', greenhouse: 'any', moonPhase: 'waning' },
+    companions: ['tomate', 'carotte', 'betterave'],
+    incompatible: ['haricot', 'pois'],
+    tasks: [
+      { day: 0, task: '🌱 Plantation', recurring: false },
+      { day: 180, task: '💧 Arrosage', recurring: 'weekly' },
+      { day: 240, task: '🧄 Récolte', recurring: false }
+    ],
+    yield: { min: 0.3, max: 0.6, unit: 'kg/tête' },
+    diseases: ['pourriture blanche'],
+    tips: ['Planter en terre légère', 'Butter légèrement'],
+    sowing_tip: 'Planter automnes (oct-nov) ou printemp.',
+    color: '#ecf0f1'
+  },
+  {
+    id: 'patate-douce',
+    name: 'Patate douce',
+    variety: 'Orange',
+    icon: '🍠',
+    family: 'Convolvulacées',
+    cycle: 'annuelle',
+    daysToMaturity: 120,
+    harvestDuration: 30,
+    spacing: { between: 30, rows: 80 },
+    grid_size: 2,
+    needs: { sun: 'full', water: 'medium', temp: { min: 20, max: 35, ideal: 28 } },
+    planting: { indoor: '2026-03-01', outdoor: '2026-05-20', greenhouse: 'any', moonPhase: 'any' },
+    companions: ['mais', 'haricot', 'courge'],
+    incompatible: [],
+    tasks: [
+      { day: 0, task: '🌱 Plantation', recurring: false },
+      { day: 3, task: '💧 Arrosage', recurring: 'weekly' },
+      { day: 90, task: '💧 Réduire arrosage', recurring: false },
+      { day: 120, task: '🍠 Récolte', recurring: false }
+    ],
+    yield: { min: 2, max: 5, unit: 'kg/pied' },
+    diseases: ['taupin', 'limaces'],
+    tips: ['Buttage et palissage', 'Récolter avant gel'],
+    sowing_tip: 'Faire germer tubercules à 24°C.',
+    color: '#e67e22'
+  },
+  {
+    id: 'betterave-ronde',
+    name: 'Betterave',
+    variety: 'Ronde',
+    icon: '🥕',
+    family: 'Chénopodiacées',
+    cycle: 'annuelle',
+    daysToMaturity: 70,
+    harvestDuration: 30,
+    spacing: { between: 10, rows: 25 },
+    grid_size: 1,
+    needs: { sun: 'full', water: 'medium', temp: { min: 10, max: 28, ideal: 20 } },
+    planting: { indoor: '2026-03-01', outdoor: '2026-04-15', greenhouse: 'any', moonPhase: 'waning' },
+    companions: ['oignon', 'chou', 'laitue'],
+    incompatible: ['haricot', 'pois'],
+    tasks: [
+      { day: 0, task: '🌱 Semis', recurring: false },
+      { day: 21, task: '🌱 Éclaircir', recurring: false },
+      { day: 70, task: '🥕 Récolte', recurring: false }
+    ],
+    yield: { min: 2, max: 4, unit: 'kg/m²' },
+    diseases: ['mildiou', 'cercine'],
+    tips: ['Éclaircir à 10cm', 'Se consommecrue ou cuite'],
+    sowing_tip: 'Semer en place, 2-3cm. Récolter jeune.',
+    color: '#9b59b6'
+  },
+  {
+    id: 'celeri-branche',
+    name: 'Céleri',
+    variety: 'Branche',
+    icon: '🥬',
+    family: 'Apiacées',
+    cycle: 'annuelle',
+    daysToMaturity: 130,
+    harvestDuration: 60,
+    spacing: { between: 25, rows: 35 },
+    grid_size: 1,
+    needs: { sun: 'full', water: 'high', temp: { min: 10, max: 25, ideal: 18 } },
+    planting: { indoor: '2026-02-15', outdoor: '2026-05-10', greenhouse: '2026-04-01', moonPhase: 'waning' },
+    companions: ['poireau', 'tomate', 'chou'],
+    incompatible: ['mais'],
+    tasks: [
+      { day: 0, task: '🌱 Semis', recurring: false },
+      { day: 70, task: '🌱 Repiquage', recurring: false },
+      { day: 100, task: '💧 Arrosage', recurring: 'weekly' },
+      { day: 130, task: '🥬 Récolte', recurring: 'weekly' }
+    ],
+    yield: { min: 0.5, max: 1, unit: 'kg/pied' },
+    diseases: ['septoriose', 'mouche de la carotte'],
+    tips: ['Butter pour blanchir', 'Exige beaucoup d\'eau'],
+    sowing_tip: 'Semis délicat. Repiquer jeunes plants.',
+    color: '#a4de02'
+  },
+  {
+    id: 'radis-cherry-belle',
+    name: 'Radis',
+    variety: 'Cherry Belle',
+    icon: '🔴',
+    family: 'Brassicacées',
+    cycle: 'annuelle',
+    daysToMaturity: 28,
+    harvestDuration: 14,
+    spacing: { between: 5, rows: 15 },
+    grid_size: 1,
+    needs: { sun: 'full', water: 'medium', temp: { min: 8, max: 22, ideal: 15 } },
+    planting: { indoor: 'any', outdoor: '2026-03-01', greenhouse: 'any', moonPhase: 'any' },
+    companions: ['laitue', 'carotte', 'pois'],
+    incompatible: ['chou'],
+    tasks: [
+      { day: 0, task: '🌱 Semis', recurring: false },
+      { day: 28, task: '🔴 Récolte', recurring: false }
+    ],
+    yield: { min: 0.1, max: 0.2, unit: 'kg/m²' },
+    diseases: ['altise', 'limaces'],
+    tips: ['Semer tous les 15 jours', 'Récolte rapide'],
+    sowing_tip: 'Direct en place, 1cm. Récolte en 4 semaines.',
+    color: '#c0392b'
+  },
+  {
+    id: 'epinard-monstrueux',
+    name: 'Épinard',
+    variety: 'Monstrueux de Viroflay',
+    icon: '🥬',
+    family: 'Chénopodiacées',
+    cycle: 'annuelle',
+    daysToMaturity: 45,
+    harvestDuration: 30,
+    spacing: { between: 15, rows: 30 },
+    grid_size: 1,
+    needs: { sun: 'partial', water: 'high', temp: { min: 5, max: 22, ideal: 15 } },
+    planting: { indoor: '2026-03-15', outdoor: '2026-04-01', greenhouse: 'any', moonPhase: 'any' },
+    companions: ['fraise', 'pois', 'haricot'],
+    incompatible: [],
+    tasks: [
+      { day: 0, task: '🌱 Semis', recurring: false },
+      { day: 30, task: '💧 Arrosage', recurring: 'weekly' },
+      { day: 45, task: '🥬 Récolte', recurring: 'weekly' }
+    ],
+    yield: { min: 0.4, max: 0.8, unit: 'kg/m²' },
+    diseases: ['mildiou', 'peronospora'],
+    tips: ['Tolère mi-ombre', 'Semis mars-avril et sept'],
+    sowing_tip: 'Semer en place, 2cm. Bien arroser.',
+    color: '#27ae60'
+  },
+  {
+    id: 'chou-bleu',
+    name: 'Chou',
+    variety: 'Bleu de Milros',
+    icon: '🥦',
+    family: 'Brassicacées',
+    cycle: 'annuelle',
+    daysToMaturity: 120,
+    harvestDuration: 45,
+    spacing: { between: 50, rows: 60 },
+    grid_size: 2,
+    needs: { sun: 'full', water: 'high', temp: { min: 8, max: 25, ideal: 18 } },
+    planting: { indoor: '2026-02-15', outdoor: '2026-04-15', greenhouse: 'any', moonPhase: 'waning' },
+    companions: ['céleri', 'betterave', 'oignon'],
+    incompatible: ['tomate', 'haricot', 'fraise'],
+    tasks: [
+      { day: 0, task: '🌱 Semis', recurring: false },
+      { day: 30, task: '🌱 Repiquage', recurring: false },
+      { day: 90, task: '💧 Arrosage', recurring: 'weekly' },
+      { day: 120, task: '🥦 Récolte', recurring: 'weekly' }
+    ],
+    yield: { min: 2, max: 4, unit: 'kg/pied' },
+    diseases: ['altise', 'piéride', 'mildiou'],
+    tips: ['Protéger des insects', 'Bonne conservation'],
+    sowing_tip: 'Semer en pépinière. Repiquer 60cm.',
+    color: '#2980b9'
+  },
+  {
+    id: 'brocoli',
+    name: 'Brocoli',
+    variety: 'Calabrais',
+    icon: '🥦',
+    family: 'Brassicacées',
+    cycle: 'annuelle',
+    daysToMaturity: 90,
+    harvestDuration: 30,
+    spacing: { between: 50, rows: 60 },
+    grid_size: 2,
+    needs: { sun: 'full', water: 'high', temp: { min: 10, max: 25, ideal: 20 } },
+    planting: { indoor: '2026-02-15', outdoor: '2026-04-15', greenhouse: '2026-03-15', moonPhase: 'waning' },
+    companions: ['céleri', 'betterave', 'oignon'],
+    incompatible: ['tomate', 'haricot', 'fraise'],
+    tasks: [
+      { day: 0, task: '🌱 Semis', recurring: false },
+      { day: 28, task: '🌱 Repiquage', recurring: false },
+      { day: 70, task: '💧 Arrosage', recurring: 'weekly' },
+      { day: 90, task: '🥦 Récolte', recurring: false }
+    ],
+    yield: { min: 0.5, max: 1, unit: 'kg/pied' },
+    diseases: ['piéride', 'altise', 'mildiou'],
+    tips: ['Récolter tête centrale', 'Pousse laterale après'],
+    sowing_tip: 'Long cycle. Semer tôt.',
+    color: '#1abc9c'
   }
 ];
 
-// Helper pour trouver une plante
+// Helpers
 export function getPlantById(id) {
   return PLANTS_DB.find(p => p.id === id);
 }
 
-// Helper pour filtrer par famille
 export function getPlantsByFamily(family) {
   return PLANTS_DB.filter(p => p.family === family);
 }
 
-// Helper pour vérifier compagnonnage
 export function areCompanions(plant1, plant2) {
   const p1 = getPlantById(plant1);
   const p2 = getPlantById(plant2);
-  
   if (!p1 || !p2) return false;
-  
   return p1.companions.includes(plant2) || p2.companions.includes(plant1);
 }
 
-// Helper pour vérifier incompatibilité
 export function areIncompatible(plant1, plant2) {
   const p1 = getPlantById(plant1);
   const p2 = getPlantById(plant2);
-  
   if (!p1 || !p2) return false;
-  
   return p1.incompatible.includes(plant2) || p2.incompatible.includes(plant1);
 }
 
-// Helper pour générer les tâches auto
 export function generateTasks(plantId, plantedDate) {
   const plant = getPlantById(plantId);
   if (!plant) return [];
-  
   const planted = new Date(plantedDate);
-  
   return plant.tasks.map(task => ({
     ...task,
     date: new Date(planted.getTime() + task.day * 24 * 60 * 60 * 1000),
@@ -318,19 +1087,31 @@ export function generateTasks(plantId, plantedDate) {
   }));
 }
 
-// Helper pour estimer la récolte
 export function estimateYield(plantId, count) {
   const plant = getPlantById(plantId);
   if (!plant) return null;
-  
   const avg = (plant.yield.min + plant.yield.max) / 2;
-  
   return {
     min: plant.yield.min * count,
     max: plant.yield.max * count,
     avg: avg * count,
     unit: plant.yield.unit,
-    startDate: null, // à calculer avec plantedDate
-    endDate: null
   };
 }
+
+// Grille par défaut (toutes les plantes avec grid_size)
+export const PLANTS_SIMPLE = PLANTS_DB.map(p => ({
+  id: p.id,
+  name: p.name,
+  variety: p.variety,
+  icon: p.icon,
+  emoji: p.icon,
+  color: p.color,
+  grid_size: p.grid_size,
+  spacing_cm: p.spacing.between,
+  companions: p.companions,
+  enemies: p.incompatible,
+  workflow: ['Semé 🌱', 'Levé 🌿', 'Repiquer 🪴', 'En terre 🌍', 'Récolté 🧺'],
+  workflow_days: [0, Math.round(p.daysToMaturity * 0.15), Math.round(p.daysToMaturity * 0.25), Math.round(p.daysToMaturity * 0.5), p.daysToMaturity],
+  sowing_tip: p.sowing_tip,
+}));
