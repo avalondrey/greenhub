@@ -716,38 +716,46 @@ function IsoTerrainBlock({ cx, cy, selected, isMoving, plant, stage, stageIdx, o
 
     // ── PRIORITÉ 1: TileSet découpé par Canvas (tomates S01) ──────────
     if (tileDataURL) {
-      const imgW = 48 + scale * 10;
-      const imgH = imgW * 0.55;
-      const emojiY = isInDirt ? plantBaseY - imgH * 0.2 : plantBaseY - imgH - 2;
+      // Taille du sprite adaptée au bloc de terre (TW=64, TH=32)
+      // Le sprite doit tenir dans le losange isométrique sans déborder
+      const baseSize = TW * 0.55;
+      const imgW = baseSize + scale * 4;
+      const imgH = imgW * 0.7;
+      // Position: ancré sur le dessus du bloc terre, centré
+      const plantY = isInDirt
+        ? dirtSurfaceY - imgH * 0.15
+        : dirtSurfaceY - imgH + 2;
+      const plantX = cx - imgW / 2;
       return (
         <>
-          <ellipse cx={cx} cy={dirtSurfaceY + 1} rx={imgW * 0.35} ry={imgW * 0.07} fill="rgba(0,0,0,0.35)"/>
-          {!isInDirt && (
-            <ellipse cx={cx} cy={dirtSurfaceY} rx={imgW * 0.2} ry={imgW * 0.05} fill={glowColor} opacity={0.4}/>
-          )}
+          {/* Ombre douce sous le sprite */}
+          <ellipse cx={cx} cy={dirtSurfaceY + 1} rx={imgW * 0.3} ry={imgW * 0.06}
+            fill="rgba(0,0,0,0.3)"/>
+          {/* Sprite pixel art propre */}
           <image
             href={tileDataURL}
-            x={cx - imgW / 2}
-            y={emojiY}
+            x={plantX}
+            y={plantY}
             width={imgW}
             height={imgH}
             opacity={opacity}
-            preserveAspectRatio="xMidYMax meet"
-            style={{ filter: 'drop-shadow(0 2px 3px rgba(0,0,0,0.5))', imageRendering: 'pixelated' }}
+            style={{
+              imageRendering: 'pixelated',
+              filter: 'drop-shadow(0 1px 2px rgba(0,0,0,0.4))',
+            }}
           />
-          {isInDirt && (
-            <ellipse cx={cx} cy={dirtSurfaceY} rx={imgW * 0.25} ry={imgW * 0.08} fill="#8b5e3c" opacity={0.7}/>
-          )}
+          {/* Barre de croissance sur le bord dirt */}
           {stageIdxSafe > 0 && stageIdxSafe < 5 && (
-            <g>
-              <rect x={cx - 10} y={dirtSurfaceY + 2} width={20} height={3} rx={1} fill="rgba(0,0,0,0.4)" opacity={0.7}/>
-              <rect x={cx - 10} y={dirtSurfaceY + 2} width={20 * (stageIdxSafe / 6)} height={3} rx={1} fill={glowColor} opacity={0.9}/>
-            </g>
+            <rect x={cx - 8} y={dirtSurfaceY + TD - 5} width={16} height={2} rx={1}
+              fill={glowColor} opacity={0.8}/>
           )}
+          {/* Badge PRÊTE */}
           {stageIdxSafe === 5 && (
             <>
-              <rect x={cx - 14} y={emojiY - 4} width={28} height={9} rx={2} fill="#e63946" opacity={0.9}/>
-              <text x={cx} y={emojiY + 3} textAnchor="middle" fontSize="6" fill="#fff" style={{ userSelect: "none" }}>PRÊTE!</text>
+              <rect x={cx - 12} y={plantY - 3} width={24} height={8} rx={2}
+                fill="#e63946" stroke="#fff" strokeWidth={0.5} opacity={0.95}/>
+              <text x={cx} y={plantY + 3} textAnchor="middle" fontSize="5" fill="#fff"
+                style={{ userSelect: 'none', fontFamily: 'monospace', fontWeight: 'bold' }}>PRÊTE!</text>
             </>
           )}
         </>
