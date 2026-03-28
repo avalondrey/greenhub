@@ -785,62 +785,16 @@ function IsometricMiniSerre({ serre, selectedIdx, onCellClick }) {
 
       <g transform={`translate(${ox},${oy})`}>
 
-        {/* COQUE PLASTIQUE VERTE - ARRIÈRE (dessus du toit) */}
-        {/* Face arrière du toit - losange supérieur */}
-        <polygon
-          points={`
-            ${tl.x+TW/2},${tl.y+TH/2+domeY-24}
-            ${tr.x+TW/2},${tr.y+TH/2+domeY-24}
-            ${br.x+TW/2},${br.y+TH/2+12}
-            ${bl.x+TW/2},${bl.y+TH/2+12}
-          `}
-          fill="rgba(180,230,195,0.30)"
-          stroke="rgba(255,255,255,0.8)"
+        {/* DÔME VITRÉ (arrière) */}
+        <rect
+          x={tl.x + TW/2 - 8}
+          y={tl.y + TH/2 + domeY}
+          width={(tr.x + TW/2 + 8) - (tl.x + TW/2 - 8)}
+          height={domeH}
+          fill="rgba(180,230,200,0.25)"
+          stroke="rgba(120,190,130,0.5)"
           strokeWidth="2"
-        />
-
-        {/* COQUE PLASTIQUE VERTE - AVANT (devant les plantes) */}
-        {/* Bords blancs du cadre */}
-        {/* Gauche */}
-        <line x1={tl.x+TW/2-6} y1={tl.y+TH/2+domeY} x2={bl.x+TW/2-4} y2={bl.y+TH/2+14}
-          stroke="rgba(255,255,255,0.9)" strokeWidth="3" strokeLinecap="round"/>
-        {/* Droite */}
-        <line x1={tr.x+TW/2+6} y1={tr.y+TH/2+domeY} x2={br.x+TW/2+4} y2={br.y+TH/2+14}
-          stroke="rgba(255,255,255,0.9)" strokeWidth="3" strokeLinecap="round"/>
-        {/* Haut */}
-        <line x1={tl.x+TW/2-6} y1={tl.y+TH/2+domeY} x2={tr.x+TW/2+6} y2={tr.y+TH/2+domeY}
-          stroke="rgba(255,255,255,0.9)" strokeWidth="3" strokeLinecap="round"/>
-
-        {/* Fond transparent du plastique vert */}
-        <polygon
-          points={`
-            ${tl.x+TW/2-6},${tl.y+TH/2+domeY}
-            ${tr.x+TW/2+6},${tr.y+TH/2+domeY}
-            ${br.x+TW/2+4},${br.y+TH/2+14}
-            ${bl.x+TW/2-4},${bl.y+TH/2+14}
-          `}
-          fill="rgba(180,235,200,0.18)"
-          stroke="none"
-        />
-
-        {/* Reflets sur le plastique */}
-        <polygon
-          points={`
-            ${tl.x+TW/2-2},${tl.y+TH/2+domeY+4}
-            ${tl.x+TW/2+20},${tl.y+TH/2+domeY+4}
-            ${tl.x+TW/2+18},${tl.y+TH/2+domeY+20}
-            ${tl.x+TW/2-2},${tl.y+TH/2+domeY+18}
-          `}
-          fill="rgba(255,255,255,0.20)"
-        />
-        <polygon
-          points={`
-            ${tr.x+TW/2-12},${tr.y+TH/2+domeY+6}
-            ${tr.x+TW/2+4},${tr.y+TH/2+domeY+6}
-            ${tr.x+TW/2+2},${tr.y+TH/2+domeY+14}
-            ${tr.x+TW/2-10},${tr.y+TH/2+domeY+14}
-          `}
-          fill="rgba(255,255,255,0.12)"
+          rx="6"
         />
 
         {/* Tuiles isométriques back-to-front */}
@@ -867,22 +821,34 @@ function IsometricMiniSerre({ serre, selectedIdx, onCellClick }) {
           })
         )}
 
-        {/* COQUE PLASTIQUE - FOND VITRÉ AVANT (semi-transparent) */}
-        <polygon
-          points={`
-            ${tl.x+TW/2-6},${tl.y+TH/2+domeY}
-            ${tr.x+TW/2+6},${tr.y+TH/2+domeY}
-            ${br.x+TW/2+4},${br.y+TH/2+14}
-            ${bl.x+TW/2-4},${bl.y+TH/2+14}
-          `}
-          fill="rgba(195,245,215,0.12)"
-          stroke="none"
+        {/* DÔME VITRÉ (avant - reflets) */}
+        <rect
+          x={tl.x + TW/2 - 8}
+          y={tl.y + TH/2 + domeY}
+          width={(tr.x + TW/2 + 8) - (tl.x + TW/2 - 8)}
+          height={domeH}
+          fill="url(#isoSkyGrad)"
+          fillOpacity="0.08"
+          stroke="rgba(140,210,150,0.55)"
+          strokeWidth="2"
+          rx="6"
+          style={{ pointerEvents: "none" }}
         />
 
-        {/* Label LIDL sur le toit */}
+        {/* Traverses du toit */}
+        <g opacity={0.6}>
+          <line x1={tl.x+TW/2} y1={tl.y+TH/2+domeY} x2={tr.x+TW/2} y2={tr.y+TH/2+domeY}
+            stroke="#8a6030" strokeWidth={2} strokeDasharray="4,2"/>
+          <line x1={tl.x+TW/2} y1={tl.y+TH/2+domeY} x2={bl.x+TW/2} y2={bl.y+TH/2+domeY+8}
+            stroke="#8a6030" strokeWidth={2} strokeDasharray="4,2"/>
+          <line x1={tr.x+TW/2} y1={tr.y+TH/2+domeY} x2={br.x+TW/2} y2={br.y+TH/2+domeY+8}
+            stroke="#8a6030" strokeWidth={2} strokeDasharray="4,2"/>
+        </g>
+
+        {/* Label LIDL */}
         <rect
           x={(tl.x+tr.x)/2 + TW/2 - 22}
-          y={tl.y + TH/2 + domeY - 18}
+          y={tl.y + TH/2 + domeY - 14}
           width={44}
           height={12}
           fill="#e63946"
@@ -890,7 +856,7 @@ function IsometricMiniSerre({ serre, selectedIdx, onCellClick }) {
         />
         <text
           x={(tl.x+tr.x)/2 + TW/2}
-          y={tl.y + TH/2 + domeY - 9}
+          y={tl.y + TH/2 + domeY - 5}
           textAnchor="middle"
           fontSize="8"
           fontWeight="800"
