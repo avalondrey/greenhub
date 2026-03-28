@@ -627,458 +627,257 @@ function SerreScreen({ serres, onAddSerre, onTransplant }) {
   );
 }
 
-// ─── JARDIN RÉEL 3D ISOMÉTRIQUE ─────────────────────────────────────────────
-// Jardin réel avec plantes permanentes, arbres, haies, arbustes, cabanons
+// ─── JARDIN RÉEL VOXEL ISOMÉTRIQUE ─────────────────────────────────────────
+// Jardin voxel style Minecraft avec image isométrique en fond
+// Permet d'ajouter, déplacer et supprimer des éléments librement
 
-function GardenReal3D({ objects, gridSize, onRemoveObject, onSelectObject, selectedId }) {
-  const TILE = 40;
-  const ISO_ANGLE = 0.5;
+const ISOMETRIC_FOREST_BG = 'https://st5.depositphotos.com/2885805/69454/i/1600/depositphotos_694548908-stock-photo-isometric-forest-composition-set-sections.jpg';
 
-  // Couleurs réalistes
-  const SOIL_COLOR = '#5D4E37';
-  const GRASS_COLOR = '#4A7023';
-  const SHADOW_COLOR = 'rgba(0,0,0,0.2)';
+// Couleurs voxels pour les objets
+const VOXEL_COLORS = {
+  tree: { top: '#228B22', side: '#1a6b1a', dark: '#145214' },
+  fruit_tree: { top: '#DC143C', side: '#a01025', dark: '#7a0c1c' },
+  hedge: { top: '#355E3B', side: '#2a4a2f', dark: '#1f3a24' },
+  shrub: { top: '#4169E1', side: '#3456b0', dark: '#28448a' },
+  small_fruit: { top: '#9370DB', side: '#7659b8', dark: '#5c4590' },
+  shed: { top: '#8B4513', side: '#6d350f', dark: '#52280b' },
+  greenhouse: { top: '#90EE90', side: '#73bf73', dark: '#599659' },
+  pond: { top: '#4169E1', side: '#3456b0', dark: '#28448a' },
+  default: { top: '#4A7023', side: '#3a5a1c', dark: '#2d4a16' },
+};
 
-  const renderObject3D = (obj, x, y) => {
-    const size = obj.spanCells || 1;
-    const w = size * TILE;
-    const h = size * TILE * 0.6;
+function getVoxelColors(obj) {
+  if (obj.type === 'tree' || obj.type === 'fruit_tree') return VOXEL_COLORS.tree;
+  if (obj.type === 'hedge') return VOXEL_COLORS.hedge;
+  if (obj.type === 'shrub') return VOXEL_COLORS.shrub;
+  if (obj.type === 'small_fruit') return VOXEL_COLORS.small_fruit;
+  if (obj.structureType === 'shed') return VOXEL_COLORS.shed;
+  if (obj.structureType === 'greenhouse') return VOXEL_COLORS.greenhouse;
+  if (obj.structureType === 'pond') return VOXEL_COLORS.pond;
+  return VOXEL_COLORS.default;
+}
 
-    if (obj.type === 'structure') {
-      if (obj.structureType === 'shed') {
-        // Cabanon 3D réaliste
-        return (
-          <div key={obj.id} style={{
-            position: 'absolute',
-            left: x, top: y,
-            width: w, height: h * 1.2,
-            cursor: 'pointer',
-            transform: 'translateZ(0)',
-          }}>
-            {/* Ombre */}
-            <div style={{
-              position: 'absolute', bottom: -4, left: 4,
-              width: w, height: 10,
-              background: 'radial-gradient(ellipse, rgba(0,0,0,0.3) 0%, transparent 70%)',
-              filter: 'blur(3px)',
-            }} />
-            {/* Base / murs */}
-            <div style={{
-              position: 'absolute', bottom: 8, left: 0,
-              width: w, height: h * 0.7,
-              background: `linear-gradient(135deg, ${obj.color} 0%, ${obj.color}cc 50%, ${obj.color}99 100%)`,
-              border: '2px solid rgba(0,0,0,0.3)',
-              borderRadius: '3px 3px 0 0',
-              boxShadow: `inset 0 2px 0 rgba(255,255,255,0.15), inset 0 -2px 0 rgba(0,0,0,0.2), 0 4px 12px rgba(0,0,0,0.3)`,
-            }}>
-              {/* Porte */}
-              <div style={{
-                position: 'absolute', bottom: 0, left: '50%', transform: 'translateX(-50%)',
-                width: w * 0.25, height: h * 0.35,
-                background: 'linear-gradient(180deg, #4a3728 0%, #3a2a1a 100%)',
-                border: '1px solid rgba(0,0,0,0.4)',
-                borderBottom: 'none',
-                borderRadius: '2px 2px 0 0',
-              }}>
-                <div style={{ position: 'absolute', top: '40%', right: 4, width: 3, height: 3, background: '#c9a227', borderRadius: '50%' }} />
-              </div>
-              {/* Fenêtre */}
-              <div style={{
-                position: 'absolute', top: h * 0.15, right: w * 0.12,
-                width: w * 0.2, height: h * 0.2,
-                background: 'linear-gradient(135deg, rgba(135,206,235,0.6) 0%, rgba(135,206,235,0.3) 100%)',
-                border: '2px solid rgba(255,255,255,0.3)',
-                borderRadius: 2,
-              }} />
-            </div>
-            {/* Toit */}
-            <div style={{
-              position: 'absolute', top: 0, left: -4,
-              width: w + 8, height: h * 0.4,
-              background: `linear-gradient(180deg, #6B4423 0%, ${obj.color}88 100%)`,
-              border: '2px solid rgba(0,0,0,0.3)',
-              borderRadius: '6px 6px 0 0',
-              boxShadow: 'inset 0 2px 0 rgba(255,255,255,0.1), 0 -2px 8px rgba(0,0,0,0.2)',
-              transform: 'perspective(100) rotateX(-5deg)',
-            }}>
-              {/* Planches de toit */}
-              {[0, 0.25, 0.5, 0.75].map((offset, i) => (
-                <div key={i} style={{
-                  position: 'absolute', top: 2, left: `${offset * 100}%`,
-                  width: '2px', height: '80%',
-                  background: 'rgba(0,0,0,0.15)',
-                }} />
-              ))}
-            </div>
-            {/* Sélection */}
-            {selectedId === obj.id && (
-              <div style={{
-                position: 'absolute', inset: -6,
-                border: '3px solid #2ecc71',
-                borderRadius: 8,
-                boxShadow: '0 0 20px rgba(46,204,113,0.5)',
-                pointerEvents: 'none',
-              }} />
-            )}
-          </div>
-        );
-      }
-      if (obj.structureType === 'greenhouse') {
-        // Serre 3D réaliste
-        return (
-          <div key={obj.id} style={{
-            position: 'absolute',
-            left: x, top: y,
-            width: w, height: h * 1.3,
-            cursor: 'pointer',
-          }}>
-            {/* Ombre */}
-            <div style={{
-              position: 'absolute', bottom: -4, left: 4,
-              width: w, height: 10,
-              background: 'radial-gradient(ellipse, rgba(0,0,0,0.25) 0%, transparent 70%)',
-              filter: 'blur(3px)',
-            }} />
-            {/* Structure */}
-            <div style={{
-              position: 'absolute', bottom: 6, left: 0,
-              width: w, height: h * 0.65,
-              background: 'linear-gradient(135deg, rgba(200,230,200,0.6) 0%, rgba(150,210,150,0.4) 50%, rgba(120,200,120,0.5) 100%)',
-              border: `3px solid rgba(80,160,80,0.7)`,
-              borderRadius: '4px 4px 0 0',
-              backdropFilter: 'blur(4px)',
-              boxShadow: `
-                inset 0 0 20px rgba(255,255,255,0.2),
-                inset 0 2px 0 rgba(255,255,255,0.4),
-                0 6px 20px rgba(0,0,0,0.2)
-              `,
-            }}>
-              {/* Reflets vitrage */}
-              <div style={{
-                position: 'absolute', top: 4, left: 4,
-                width: w * 0.3, height: h * 0.25,
-                background: 'linear-gradient(135deg, rgba(255,255,255,0.4) 0%, transparent 100%)',
-                borderRadius: 2,
-                filter: 'blur(2px)',
-              }} />
-              {/* Cadre estructura */}
-              <div style={{ position: 'absolute', inset: 4, border: '1px solid rgba(80,140,80,0.4)', borderRadius: 2 }}>
-                {/* Croix centrale */}
-                <div style={{ position: 'absolute', top: '30%', left: '50%', width: '60%', height: 1, background: 'rgba(80,140,80,0.3)', transform: 'translateX(-50%)' }} />
-                <div style={{ position: 'absolute', top: '50%', left: '50%', width: 1, height: '60%', background: 'rgba(80,140,80,0.3)', transform: 'translateX(-50%)' }} />
-              </div>
-            </div>
-            {/* Toit pignon */}
-            <div style={{
-              position: 'absolute', top: 0, left: -2,
-              width: w + 4, height: h * 0.35,
-              background: `linear-gradient(180deg, rgba(180,225,180,0.7) 0%, rgba(140,200,140,0.6) 100%)`,
-              border: '2px solid rgba(80,160,80,0.6)',
-              borderBottom: 'none',
-              borderRadius: '8px 8px 0 0',
-              backdropFilter: 'blur(2px)',
-            }}>
-              <div style={{
-                position: 'absolute', top: 5, left: '50%', transform: 'translateX(-50%)',
-                background: 'linear-gradient(180deg, #e63946 0%, #c1121f 100%)',
-                color: '#fff', fontSize: 7, fontWeight: 800, letterSpacing: 1.5,
-                padding: '2px 8px 1px', borderRadius: 2,
-                boxShadow: '0 1px 3px rgba(0,0,0,0.3)',
-              }}>GREENHOUSE</div>
-            </div>
-            {selectedId === obj.id && (
-              <div style={{
-                position: 'absolute', inset: -6,
-                border: '3px solid #2ecc71',
-                borderRadius: 8,
-                boxShadow: '0 0 20px rgba(46,204,113,0.5)',
-                pointerEvents: 'none',
-              }} />
-            )}
-          </div>
-        );
-      }
-      if (obj.structureType === 'pond') {
-        // Mare/Bassin 3D
-        return (
-          <div key={obj.id} style={{
-            position: 'absolute',
-            left: x, top: y,
-            width: w, height: h,
-            cursor: 'pointer',
-          }}>
-            <div style={{
-              width: w, height: h,
-              background: 'radial-gradient(ellipse at 40% 40%, rgba(100,180,220,0.8) 0%, rgba(30,100,180,0.6) 50%, rgba(20,70,140,0.8) 100%)',
-              border: '3px solid rgba(40,100,160,0.6)',
-              borderRadius: '50% 45% 50% 48%',
-              boxShadow: 'inset 0 0 20px rgba(255,255,255,0.15), inset 0 -4px 8px rgba(0,0,0,0.2), 0 4px 12px rgba(0,0,0,0.25)',
-            }}>
-              {/* Reflets eau */}
-              <div style={{
-                position: 'absolute', top: '20%', left: '25%',
-                width: '30%', height: '20%',
-                background: 'radial-gradient(ellipse, rgba(255,255,255,0.4) 0%, transparent 70%)',
-                borderRadius: '50%',
-                filter: 'blur(2px)',
-              }} />
-              {/* Nénuphar */}
-              <div style={{ position: 'absolute', bottom: '20%', right: '25%', fontSize: 14 }}>🪷</div>
-            </div>
-            {selectedId === obj.id && (
-              <div style={{
-                position: 'absolute', inset: -4,
-                border: '3px solid #2ecc71',
-                borderRadius: '50% 45% 50% 48%',
-                boxShadow: '0 0 20px rgba(46,204,113,0.5)',
-                pointerEvents: 'none',
-              }} />
-            )}
-          </div>
-        );
-      }
-    }
+function GardenReal3D({ objects, gridSize, onSelectObject, selectedId }) {
+  const TILE = 32;
+  const ISO_D = 16; // profondeur isometrique par tuile
 
-    if (obj.type === 'tree' || obj.type === 'fruit_tree') {
-      // Arbre 3D réaliste
-      const trunkH = h * 0.35;
-      const crownH = h * 0.75;
-      const crownW = w * 0.85;
-      const isFruit = obj.type === 'fruit_tree';
-      return (
-        <div key={obj.id} style={{
-          position: 'absolute',
-          left: x, top: y,
-          width: w, height: h + trunkH,
-          cursor: 'pointer',
-        }}>
-          {/* Ombre */}
-          <div style={{
-            position: 'absolute', bottom: 0, left: '30%',
-            width: w * 0.7, height: 8,
-            background: 'radial-gradient(ellipse, rgba(0,0,0,0.25) 0%, transparent 70%)',
-            filter: 'blur(2px)',
-          }} />
-          {/* Tronc */}
-          <div style={{
-            position: 'absolute', bottom: 0, left: '50%',
-            transform: 'translateX(-50%)',
-            width: w * 0.12, height: trunkH,
-            background: `linear-gradient(90deg, #4a3728 0%, #6B4423 40%, #5a3d28 70%, #3a2718 100%)`,
-            borderRadius: '2px 2px 0 0',
-            boxShadow: '2px 0 4px rgba(0,0,0,0.2)',
-          }} />
-          {/* Cime */}
-          <div style={{
-            position: 'absolute', top: 0, left: '50%',
-            transform: 'translateX(-50%)',
-            width: crownW, height: crownH,
-            background: `radial-gradient(ellipse at 50% 60%, ${obj.color}ee 0%, ${obj.color}aa 40%, ${obj.color}77 70%, ${obj.color}55 100%)`,
-            borderRadius: '50% 50% 45% 45%',
-            boxShadow: `
-              inset 2px -3px 8px rgba(255,255,255,0.15),
-              inset -2px 3px 6px rgba(0,0,0,0.15),
-              0 4px 12px rgba(0,0,0,0.2)
-            `,
-          }}>
-            {/* Highlights */}
-            <div style={{
-              position: 'absolute', top: '15%', left: '25%',
-              width: '30%', height: '25%',
-              background: 'radial-gradient(ellipse, rgba(255,255,255,0.2) 0%, transparent 70%)',
-              borderRadius: '50%',
-              filter: 'blur(3px)',
-            }} />
-            {/* Fruits si arbre fruitier */}
-            {isFruit && (
-              <div style={{ position: 'absolute', bottom: '20%', left: '50%', transform: 'translateX(-50%)', fontSize: Math.max(10, TILE * 0.3), filter: 'drop-shadow(0 1px 2px rgba(0,0,0,0.3))' }}>
-                {obj.fruit}
-              </div>
-            )}
-          </div>
-          {selectedId === obj.id && (
-            <div style={{
-              position: 'absolute', inset: -6,
-              border: '3px solid #2ecc71',
-              borderRadius: 8,
-              boxShadow: '0 0 20px rgba(46,204,113,0.5)',
-              pointerEvents: 'none',
-            }} />
-          )}
-        </div>
-      );
-    }
+  // Construire les objets positionnables sur grille libre
+  const gridCells = gridSize || 20;
 
-    if (obj.type === 'hedge') {
-      // Haie 3D
-      const hedgeH = h * 0.8;
-      return (
-        <div key={obj.id} style={{
-          position: 'absolute',
-          left: x, top: y + h * 0.2,
-          width: w, height: hedgeH,
-          cursor: 'pointer',
-        }}>
-          <div style={{
-            width: w, height: hedgeH,
-            background: `linear-gradient(180deg, ${obj.color}ee 0%, ${obj.color}cc 50%, ${obj.color}aa 100%)`,
-            borderRadius: obj.height === 'low' ? '4px' : obj.height === 'high' ? '8px 8px 4px 4px' : '6px',
-            border: '2px solid rgba(0,0,0,0.2)',
-            boxShadow: `
-              inset 0 2px 0 rgba(255,255,255,0.15),
-              inset 0 -2px 0 rgba(0,0,0,0.1),
-              0 3px 8px rgba(0,0,0,0.15)
-            `,
-          }}>
-            {/* Texture feuilles */}
-            {[0.2, 0.5, 0.8].map((pos, i) => (
-              <div key={i} style={{
-                position: 'absolute', top: '30%', left: `${pos * 100}%`,
-                width: 3, height: 3,
-                background: 'rgba(255,255,255,0.1)',
-                borderRadius: '50%',
-              }} />
-            ))}
-          </div>
-          {selectedId === obj.id && (
-            <div style={{
-              position: 'absolute', inset: -4,
-              border: '3px solid #2ecc71',
-              borderRadius: 6,
-              boxShadow: '0 0 20px rgba(46,204,113,0.5)',
-              pointerEvents: 'none',
-            }} />
-          )}
-        </div>
-      );
-    }
+  // État local pour le dragged object
+  const [dragging, setDragging] = useState(null);
+  const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
 
-    if (obj.type === 'shrub' || obj.type === 'small_fruit') {
-      // Arbuste 3D
-      const shrubH = h * 0.6;
-      return (
-        <div key={obj.id} style={{
-          position: 'absolute',
-          left: x, top: y + h * 0.4,
-          width: w, height: shrubH,
-          cursor: 'pointer',
-        }}>
-          {/* Ombre */}
-          <div style={{
-            position: 'absolute', bottom: -2, left: '20%',
-            width: w * 0.7, height: 6,
-            background: 'radial-gradient(ellipse, rgba(0,0,0,0.2) 0%, transparent 70%)',
-            filter: 'blur(2px)',
-          }} />
-          <div style={{
-            width: w, height: shrubH,
-            background: `radial-gradient(ellipse at 50% 70%, ${obj.color}ee 0%, ${obj.color}aa 60%, ${obj.color}77 100%)`,
-            borderRadius: '50% 50% 45% 45%',
-            border: '2px solid rgba(0,0,0,0.15)',
-            boxShadow: `
-              inset 1px -2px 4px rgba(255,255,255,0.1),
-              inset -1px 2px 4px rgba(0,0,0,0.1),
-              0 3px 8px rgba(0,0,0,0.15)
-            `,
-          }}>
-            {/* Fleurs/fruits */}
-            {obj.type === 'small_fruit' && (
-              <div style={{ position: 'absolute', top: '30%', left: '50%', transform: 'translateX(-50%)', fontSize: Math.max(8, TILE * 0.25) }}>
-                {obj.fruit || obj.emoji}
-              </div>
-            )}
-          </div>
-          {selectedId === obj.id && (
-            <div style={{
-              position: 'absolute', inset: -4,
-              border: '3px solid #2ecc71',
-              borderRadius: 8,
-              boxShadow: '0 0 20px rgba(46,204,113,0.5)',
-              pointerEvents: 'none',
-            }} />
-          )}
-        </div>
-      );
-    }
-
-    // Default
-    return (
-      <div key={obj.id} style={{ position: 'absolute', left: x, top: y, width: TILE, height: TILE }}>
-        <span style={{ fontSize: 24 }}>{obj.emoji}</span>
-      </div>
-    );
+  const handlePointerDown = (e, obj) => {
+    e.stopPropagation();
+    const rect = e.currentTarget.getBoundingClientRect();
+    setDragging(obj.uid);
+    setDragOffset({ x: e.clientX - rect.left, y: e.clientY - rect.top });
   };
 
-  const gridCells = gridSize || 16;
-  const viewW = gridCells * TILE;
-  const viewH = gridCells * TILE * 0.7;
+  const handlePointerMove = useCallback((e) => {
+    if (!dragging) return;
+    // Le deplacement est reactive via position dans l'objet
+  }, [dragging]);
+
+  const handlePointerUp = useCallback(() => {
+    setDragging(null);
+  }, [dragging]);
+
+  // Calcul de la position isometrique
+  const toIso = (col, row) => ({
+    x: 60 + col * TILE - row * TILE,
+    y: 30 + col * (TILE / 2) + row * (TILE / 2),
+  });
 
   return (
-    <div style={{
-      perspective: 800,
-      perspectiveOrigin: '50% 40%',
-      overflow: 'hidden',
-    }}>
-      <div style={{
-        transform: 'rotateX(-25deg) rotateZ(-2deg)',
-        transformStyle: 'preserve-3d',
+    <div
+      style={{
         position: 'relative',
-        width: viewW + 100,
-        height: viewH + 100,
-        margin: '0 auto',
-      }}>
-        {/* Sol / pelouse */}
-        <div style={{
-          position: 'absolute',
-          top: 40, left: 30,
-          width: viewW, height: viewH,
-          background: `repeating-linear-gradient(
-            0deg,
-            ${GRASS_COLOR} 0px,
-            ${GRASS_COLOR} 2px,
-            #3d5c1e 2px,
-            #3d5c1e 4px
-          )`,
-          border: '3px solid rgba(60,90,30,0.6)',
-          borderRadius: 8,
-          boxShadow: `
-            inset 0 0 40px rgba(0,0,0,0.15),
-            0 8px 32px rgba(0,0,0,0.3)
-          `,
-          transform: 'translateZ(0)',
-        }}>
-          {/* Quadrillage subtil */}
-          {Array(gridCells / 4).fill(null).map((_, i) => (
-            <div key={i} style={{
-              position: 'absolute',
-              top: 0, left: `${i * 25}%`,
-              width: '1px', height: '100%',
-              background: 'rgba(255,255,255,0.03)',
-            }} />
-          ))}
-          {Array(gridCells / 4).fill(null).map((_, i) => (
-            <div key={i} style={{
-              position: 'absolute',
-              top: `${i * 25}%`, left: 0,
-              width: '100%', height: '1px',
-              background: 'rgba(255,255,255,0.03)',
-            }} />
-          ))}
-        </div>
+        width: '100%',
+        height: 460,
+        borderRadius: 12,
+        overflow: 'hidden',
+        border: '3px solid rgba(60,90,30,0.5)',
+        boxShadow: '0 8px 32px rgba(0,0,0,0.4)',
+        cursor: dragging ? 'grabbing' : 'default',
+        userSelect: 'none',
+      }}
+      onPointerMove={handlePointerMove}
+      onPointerUp={handlePointerUp}
+    >
+      {/* Fond isometrique forêt */}
+      <div style={{
+        position: 'absolute',
+        inset: 0,
+        backgroundImage: `url(${ISOMETRIC_FOREST_BG})`,
+        backgroundSize: 'cover',
+        backgroundPosition: 'center',
+        filter: 'brightness(0.65) saturate(1.05)',
+      }} />
 
-        {/* Objets */}
-        {objects.map((obj, i) => {
-          const col = obj.position?.col || (i % 8);
-          const row = obj.position?.row || Math.floor(i / 8);
-          const xPos = 32 + col * TILE + 10;
-          const yPos = 42 + row * TILE * 0.6;
+      {/* Overlay gradient pour lisibilite */}
+      <div style={{
+        position: 'absolute',
+        inset: 0,
+        background: 'linear-gradient(180deg, rgba(0,0,0,0.2) 0%, rgba(0,0,0,0.35) 100%)',
+        pointerEvents: 'none',
+      }} />
+
+      {/* Grille isometrique de placement (subtile) */}
+      <svg
+        style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', pointerEvents: 'none' }}
+        viewBox="0 0 800 500"
+        preserveAspectRatio="xMidYMid meet"
+      >
+        {/* Lignes iso horizontales */}
+        {Array.from({ length: gridCells / 2 }, (_, i) => {
+          const start = toIso(0, i * 2);
+          const end = toIso(gridCells, i * 2);
           return (
-            <div key={obj.id + i} onClick={() => onSelectObject(obj.id)}>
-              {renderObject3D(obj, xPos, yPos)}
-            </div>
+            <line key={`h${i}`} x1={start.x} y1={start.y} x2={end.x} y2={end.y}
+              stroke="rgba(255,255,255,0.04)" strokeWidth="1" />
           );
         })}
-      </div>
+        {/* Lignes iso verticales */}
+        {Array.from({ length: gridCells / 2 }, (_, i) => {
+          const start = toIso(i * 2, 0);
+          const end = toIso(i * 2, gridCells);
+          return (
+            <line key={`v${i}`} x1={start.x} y1={start.y} x2={end.x} y2={end.y}
+              stroke="rgba(255,255,255,0.04)" strokeWidth="1" />
+          );
+        })}
+      </svg>
+
+      {/* Objets voxel */}
+      {objects.map((obj) => {
+        const pos = toIso(obj.position.col, obj.position.row);
+        const colors = getVoxelColors(obj);
+        const size = obj.spanCells || 1;
+        const isSelected = selectedId === obj.uid;
+        const isDragging = dragging === obj.uid;
+        const voxelSize = size * TILE * 0.45;
+        const voxelH = size * TILE * 0.55;
+
+        return (
+          <div
+            key={obj.uid}
+            onPointerDown={(e) => handlePointerDown(e, obj)}
+            onClick={(e) => { if (!isDragging) onSelectObject(obj.uid); }}
+            style={{
+              position: 'absolute',
+              left: pos.x,
+              top: pos.y,
+              width: voxelSize * 2,
+              height: voxelSize + voxelH,
+              cursor: isDragging ? 'grabbing' : 'grab',
+              transform: isSelected ? 'scale(1.08)' : isDragging ? 'scale(1.12)' : 'scale(1)',
+              transition: isDragging ? 'none' : 'transform 0.15s ease',
+              filter: isSelected
+                ? `drop-shadow(0 0 16px rgba(46,204,113,0.9))`
+                : isDragging
+                ? `drop-shadow(0 4px 12px rgba(0,0,0,0.5))`
+                : `drop-shadow(0 2px 6px rgba(0,0,0,0.4))`,
+              zIndex: isDragging ? 100 : isSelected ? 50 : 10,
+              pointerEvents: 'auto',
+            }}
+          >
+            {/* Cube voxel - face top (losange) */}
+            <div style={{
+              position: 'absolute',
+              top: 0,
+              left: '50%',
+              transform: 'translateX(-50%) rotateX(60deg) rotateZ(45deg)',
+              width: voxelSize,
+              height: voxelSize,
+              background: `linear-gradient(135deg, ${colors.top} 0%, ${colors.top}cc 100%)`,
+              border: '1px solid rgba(255,255,255,0.2)',
+              boxShadow: `inset 1px 1px 0 rgba(255,255,255,0.3)`,
+            }} />
+
+            {/* Cube voxel - face gauche */}
+            <div style={{
+              position: 'absolute',
+              top: voxelSize * 0.3,
+              left: 0,
+              width: voxelSize * 0.4,
+              height: voxelH,
+              background: `linear-gradient(180deg, ${colors.side} 0%, ${colors.dark} 100%)`,
+              transform: 'skewY(-30deg)',
+              transformOrigin: 'top left',
+              border: '1px solid rgba(0,0,0,0.2)',
+              borderTop: '1px solid rgba(255,255,255,0.1)',
+            }} />
+
+            {/* Cube voxel - face droite */}
+            <div style={{
+              position: 'absolute',
+              top: voxelSize * 0.3,
+              right: 0,
+              width: voxelSize * 0.4,
+              height: voxelH,
+              background: `linear-gradient(180deg, ${colors.side}cc 0%, ${colors.dark}dd 100%)`,
+              transform: 'skewY(30deg)',
+              transformOrigin: 'top right',
+              border: '1px solid rgba(0,0,0,0.3)',
+              borderTop: '1px solid rgba(255,255,255,0.05)',
+            }} />
+
+            {/* Emoji au dessus */}
+            <div style={{
+              position: 'absolute',
+              top: -voxelSize * 0.3,
+              left: '50%',
+              transform: 'translateX(-50%)',
+              fontSize: Math.max(16, voxelSize * 0.5),
+              textShadow: '0 2px 4px rgba(0,0,0,0.6)',
+              zIndex: 5,
+              pointerEvents: 'none',
+              filter: 'drop-shadow(0 1px 2px rgba(0,0,0,0.5))',
+            }}>
+              {obj.emoji}
+            </div>
+
+            {/* Indicateur de selection */}
+            {isSelected && (
+              <div style={{
+                position: 'absolute',
+                bottom: -8,
+                left: '50%',
+                transform: 'translateX(-50%)',
+                width: 10, height: 10,
+                background: '#2ecc71',
+                borderRadius: '50%',
+                border: '2px solid #fff',
+                boxShadow: '0 0 12px rgba(46,204,113,0.8)',
+              }} />
+            )}
+          </div>
+        );
+      })}
+
+      {/* Message si vide */}
+      {objects.length === 0 && (
+        <div style={{
+          position: 'absolute',
+          inset: 0,
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
+          color: 'rgba(255,255,255,0.65)',
+          fontSize: 14,
+          fontWeight: 600,
+          textShadow: '0 2px 6px rgba(0,0,0,0.6)',
+          pointerEvents: 'none',
+        }}>
+          <div style={{ fontSize: 48, marginBottom: 10 }}>🏡</div>
+          <div>Jardin Réel Voxel</div>
+          <div style={{ fontSize: 11, marginTop: 4, opacity: 0.7 }}>Ajoutez des arbres, arbustes et structures</div>
+          <div style={{ fontSize: 11, opacity: 0.5 }}>Glissez pour positionner</div>
+        </div>
+      )}
     </div>
   );
 }
@@ -1088,6 +887,8 @@ function GardenRealScreen({ permanentPlants, onAddPermanent, onRemovePermanent }
   const [activeCategory, setActiveCategory] = useState('fruit_trees');
   const [selectedObj, setSelectedObj] = useState(null);
   const [showAddPanel, setShowAddPanel] = useState(true);
+  const [draggingId, setDraggingId] = useState(null);
+  const gardenRef = useRef(null);
 
   const categories = [
     { id: 'fruit_trees', label: '🍎 Fruitiers', items: GARDEN_OBJECTS_DB.fruit_trees },
@@ -1103,16 +904,38 @@ function GardenRealScreen({ permanentPlants, onAddPermanent, onRemovePermanent }
       ...obj,
       uid: uid(),
       position: {
-        col: Math.floor(Math.random() * 8),
-        row: Math.floor(Math.random() * 8),
+        col: Math.floor(Math.random() * 12) + 2,
+        row: Math.floor(Math.random() * 10) + 2,
       },
     };
-    onAddPermanent(newObj);
+    onAddPermanent([...permanentPlants, newObj]);
     setSelectedObj(newObj.uid);
   };
 
   const handleSelectObject = (uid) => {
     setSelectedObj(selectedObj === uid ? null : uid);
+  };
+
+  const handlePointerMove = useCallback((e) => {
+    if (!draggingId || !gardenRef.current) return;
+    const rect = gardenRef.current.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+    // Conversion inverse iso approximative
+    const col = Math.round((x - 60 + y * 0.5) / 32 - 1);
+    const row = Math.round((y * 0.5 - x + 90) / 32);
+    const clampedCol = Math.max(0, Math.min(18, col));
+    const clampedRow = Math.max(0, Math.min(16, row));
+    onAddPermanent(permanentPlants.map(p => p.uid === draggingId ? { ...p, position: { col: clampedCol, row: clampedRow } } : p));
+  }, [draggingId, permanentPlants, onAddPermanent]);
+
+  const handlePointerUp = useCallback(() => {
+    setDraggingId(null);
+  }, []);
+
+  const handleObjectPointerDown = (e, uid) => {
+    e.stopPropagation();
+    setDraggingId(uid);
   };
 
   const selectedObject = permanentPlants.find(p => p.uid === selectedObj);
@@ -1163,20 +986,183 @@ function GardenRealScreen({ permanentPlants, onAddPermanent, onRemovePermanent }
         </div>
       )}
 
-      {/* Vue 3D du jardin */}
-      <div style={{ marginBottom: 10 }}>
-        <GardenReal3D
-          objects={permanentPlants}
-          gridSize={16}
-          onSelectObject={handleSelectObject}
-          onRemoveObject={(uid) => { onRemovePermanent(uid); setSelectedObj(null); }}
-          selectedId={selectedObj}
-        />
+      {/* Vue voxel du jardin */}
+      <div
+        ref={gardenRef}
+        style={{
+          position: 'relative',
+          width: '100%',
+          height: 460,
+          borderRadius: 12,
+          overflow: 'hidden',
+          border: '3px solid rgba(60,90,30,0.5)',
+          boxShadow: '0 8px 32px rgba(0,0,0,0.4)',
+          cursor: draggingId ? 'grabbing' : 'default',
+          userSelect: 'none',
+        }}
+        onPointerMove={handlePointerMove}
+        onPointerUp={handlePointerUp}
+      >
+        {/* Fond isometrique forêt */}
+        <div style={{
+          position: 'absolute',
+          inset: 0,
+          backgroundImage: `url(${ISOMETRIC_FOREST_BG})`,
+          backgroundSize: 'cover',
+          backgroundPosition: 'center',
+          filter: 'brightness(0.65) saturate(1.05)',
+        }} />
+
+        {/* Overlay gradient pour lisibilite */}
+        <div style={{
+          position: 'absolute',
+          inset: 0,
+          background: 'linear-gradient(180deg, rgba(0,0,0,0.2) 0%, rgba(0,0,0,0.35) 100%)',
+          pointerEvents: 'none',
+        }} />
+
+        {/* Grille isometrique */}
+        <svg style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', pointerEvents: 'none' }} viewBox="0 0 800 500" preserveAspectRatio="xMidYMid meet">
+          {Array.from({ length: 10 }, (_, i) => {
+            const start = { x: 60 + i * 32, y: 30 + i * 16 };
+            const end = { x: 60 + (i + 10) * 32 - 320, y: 30 + (i + 10) * 16 };
+            return <line key={`h${i}`} x1={start.x} y1={start.y} x2={end.x} y2={end.y} stroke="rgba(255,255,255,0.05)" strokeWidth="1" />;
+          })}
+          {Array.from({ length: 10 }, (_, i) => {
+            const start = { x: 60 + i * 32, y: 30 + i * 16 };
+            const end = { x: 60 + (i - 10) * 32 + 320, y: 30 + (i - 10) * 16 };
+            return <line key={`v${i}`} x1={start.x} y1={start.y} x2={end.x} y2={end.y} stroke="rgba(255,255,255,0.05)" strokeWidth="1" />;
+          })}
+        </svg>
+
+        {/* Objets voxel */}
+        {permanentPlants.map((obj) => {
+          const TILE = 32;
+          const pos = {
+            x: 60 + obj.position.col * TILE - obj.position.row * TILE,
+            y: 30 + obj.position.col * (TILE / 2) + obj.position.row * (TILE / 2),
+          };
+          const colors = getVoxelColors(obj);
+          const size = obj.spanCells || 1;
+          const isSelected = selectedObj === obj.uid;
+          const isDragging = draggingId === obj.uid;
+          const voxelSize = size * TILE * 0.45;
+          const voxelH = size * TILE * 0.55;
+
+          return (
+            <div
+              key={obj.uid}
+              onPointerDown={(e) => handleObjectPointerDown(e, obj.uid)}
+              onClick={(e) => { if (!isDragging) handleSelectObject(obj.uid); }}
+              style={{
+                position: 'absolute',
+                left: pos.x,
+                top: pos.y,
+                width: voxelSize * 2,
+                height: voxelSize + voxelH,
+                cursor: isDragging ? 'grabbing' : 'grab',
+                transform: isSelected ? 'scale(1.08)' : isDragging ? 'scale(1.12)' : 'scale(1)',
+                transition: isDragging ? 'none' : 'transform 0.15s ease',
+                filter: isSelected ? 'drop-shadow(0 0 16px rgba(46,204,113,0.9))' : isDragging ? 'drop-shadow(0 4px 12px rgba(0,0,0,0.5))' : 'drop-shadow(0 2px 6px rgba(0,0,0,0.4))',
+                zIndex: isDragging ? 100 : isSelected ? 50 : 10,
+                pointerEvents: 'auto',
+              }}
+            >
+              {/* Cube voxel - face top */}
+              <div style={{
+                position: 'absolute',
+                top: 0,
+                left: '50%',
+                transform: 'translateX(-50%) rotateX(60deg) rotateZ(45deg)',
+                width: voxelSize,
+                height: voxelSize,
+                background: `linear-gradient(135deg, ${colors.top} 0%, ${colors.top}cc 100%)`,
+                border: '1px solid rgba(255,255,255,0.2)',
+                boxShadow: `inset 1px 1px 0 rgba(255,255,255,0.3)`,
+              }} />
+              {/* Cube voxel - face gauche */}
+              <div style={{
+                position: 'absolute',
+                top: voxelSize * 0.3,
+                left: 0,
+                width: voxelSize * 0.4,
+                height: voxelH,
+                background: `linear-gradient(180deg, ${colors.side} 0%, ${colors.dark} 100%)`,
+                transform: 'skewY(-30deg)',
+                transformOrigin: 'top left',
+                border: '1px solid rgba(0,0,0,0.2)',
+                borderTop: '1px solid rgba(255,255,255,0.1)',
+              }} />
+              {/* Cube voxel - face droite */}
+              <div style={{
+                position: 'absolute',
+                top: voxelSize * 0.3,
+                right: 0,
+                width: voxelSize * 0.4,
+                height: voxelH,
+                background: `linear-gradient(180deg, ${colors.side}cc 0%, ${colors.dark}dd 100%)`,
+                transform: 'skewY(30deg)',
+                transformOrigin: 'top right',
+                border: '1px solid rgba(0,0,0,0.3)',
+                borderTop: '1px solid rgba(255,255,255,0.05)',
+              }} />
+              {/* Emoji */}
+              <div style={{
+                position: 'absolute',
+                top: -voxelSize * 0.3,
+                left: '50%',
+                transform: 'translateX(-50%)',
+                fontSize: Math.max(16, voxelSize * 0.5),
+                textShadow: '0 2px 4px rgba(0,0,0,0.6)',
+                zIndex: 5,
+                pointerEvents: 'none',
+              }}>
+                {obj.emoji}
+              </div>
+              {/* Indicateur selection */}
+              {isSelected && (
+                <div style={{
+                  position: 'absolute',
+                  bottom: -8,
+                  left: '50%',
+                  transform: 'translateX(-50%)',
+                  width: 10, height: 10,
+                  background: '#2ecc71',
+                  borderRadius: '50%',
+                  border: '2px solid #fff',
+                  boxShadow: '0 0 12px rgba(46,204,113,0.8)',
+                }} />
+              )}
+            </div>
+          );
+        })}
+
+        {/* Message si vide */}
+        {permanentPlants.length === 0 && (
+          <div style={{
+            position: 'absolute',
+            inset: 0,
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'center',
+            color: 'rgba(255,255,255,0.65)',
+            fontSize: 14,
+            fontWeight: 600,
+            textShadow: '0 2px 6px rgba(0,0,0,0.6)',
+            pointerEvents: 'none',
+          }}>
+            <div style={{ fontSize: 48, marginBottom: 10 }}>🏡</div>
+            <div>Jardin Réel Voxel</div>
+            <div style={{ fontSize: 11, marginTop: 4, opacity: 0.7 }}>Ajoutez des arbres, arbustes et structures</div>
+            <div style={{ fontSize: 11, opacity: 0.5 }}>Glissez pour positionner</div>
+          </div>
+        )}
       </div>
 
       {/* Panneau objet sélectionné */}
       {selectedObject && (
-        <div style={{ padding: 12, background: selectedObject.color + '15', border: `1px solid ${selectedObject.color}40`, borderRadius: 10, marginBottom: 8 }}>
+        <div style={{ padding: 12, background: selectedObject.color + '15', border: `1px solid ${selectedObject.color}40`, borderRadius: 10, marginTop: 10 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
             <span style={{ fontSize: 24 }}>{selectedObject.emoji}</span>
             <div>
@@ -1199,8 +1185,8 @@ function GardenRealScreen({ permanentPlants, onAddPermanent, onRemovePermanent }
       )}
 
       {/* Stats */}
-      <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.3)', textAlign: 'center' }}>
-        🌳 {permanentPlants.length} élément{permanentPlants.length > 1 ? 's' : ''} permanent{permanentPlants.length > 1 ? 's' : ''}
+      <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.3)', textAlign: 'center', marginTop: 8 }}>
+        🌳 {permanentPlants.length} élément{permanentPlants.length > 1 ? 's' : ''} · Grille 20×20 voxels
       </div>
     </div>
   );
