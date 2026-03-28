@@ -491,11 +491,27 @@ function SowingScreen({ serres, onAddSerre, onSow }) {
   const [targetSerre, setTargetSerre] = useState(null);
   const [showAddSerre, setShowAddSerre] = useState(false);
   const [newSerreName, setNewSerreName] = useState('');
+  const [sowingDate, setSowingDate] = useState(''); // date personnalisee
+  const [useCustomDate, setUseCustomDate] = useState(false);
+
+  // Calculer date par defaut (il y a X jours)
+  const getDefaultDaysAgo = (days) => {
+    const d = new Date();
+    d.setDate(d.getDate() - days);
+    return d.toISOString().split('T')[0];
+  };
 
   const handleConfirm = () => {
     if (!plant || !targetSerre) return;
-    onSow(plant, qty, targetSerre);
-    setStep(0); setPlant(null); setQty(6); setTargetSerre(null);
+    // Calculer la date de semis
+    let plantedDate;
+    if (useCustomDate && sowingDate) {
+      plantedDate = new Date(sowingDate).toISOString();
+    } else {
+      plantedDate = new Date().toISOString();
+    }
+    onSow(plant, qty, targetSerre, plantedDate);
+    setStep(0); setPlant(null); setQty(6); setTargetSerre(null); setSowingDate(''); setUseCustomDate(false);
   };
 
   if (step === 0) return (
@@ -547,6 +563,64 @@ function SowingScreen({ serres, onAddSerre, onSow }) {
           <div onClick={() => { if (newSerreName.trim()) { onAddSerre(newSerreName.trim()); setNewSerreName(''); setShowAddSerre(false); } }} style={{ padding: '8px 14px', borderRadius: 8, background: '#2ecc71', color: '#0d1117', cursor: 'pointer', fontSize: 13, fontWeight: 700 }}>OK</div>
         </div>
       )}
+
+      {/* Date de semis */}
+      <div style={{ marginBottom: 14 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+          <div style={S.label}>📅 Date de semis</div>
+          <div onClick={() => setUseCustomDate(!useCustomDate)} style={{
+            padding: '4px 8px',
+            borderRadius: 6,
+            fontSize: 10,
+            cursor: 'pointer',
+            background: useCustomDate ? 'rgba(46,204,113,0.15)' : 'rgba(255,255,255,0.05)',
+            border: `1px solid ${useCustomDate ? 'rgba(46,204,113,0.4)' : 'rgba(255,255,255,0.1)'}`,
+            color: useCustomDate ? '#2ecc71' : 'rgba(255,255,255,0.5)',
+          }}>
+            {useCustomDate ? '✓ Personnalisée' : 'Choisir une date'}
+          </div>
+        </div>
+        {useCustomDate ? (
+          <input
+            type="date"
+            value={sowingDate}
+            max={new Date().toISOString().split('T')[0]}
+            onChange={(e) => setSowingDate(e.target.value)}
+            style={{
+              width: '100%',
+              padding: '10px 12px',
+              borderRadius: 8,
+              border: '1px solid rgba(255,255,255,0.2)',
+              background: 'rgba(255,255,255,0.05)',
+              color: '#fff',
+              fontSize: 14,
+              outline: 'none',
+            }}
+          />
+        ) : (
+          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+            {[1, 3, 7, 14, 21, 30].map(days => (
+              <div key={days} onClick={() => { setUseCustomDate(true); const d = new Date(); d.setDate(d.getDate() - days); setSowingDate(d.toISOString().split('T')[0]); }} style={{
+                padding: '6px 10px',
+                borderRadius: 6,
+                fontSize: 11,
+                cursor: 'pointer',
+                background: 'rgba(255,255,255,0.05)',
+                border: '1px solid rgba(255,255,255,0.1)',
+                color: 'rgba(255,255,255,0.6)',
+              }}>
+                Il y a {days}j
+              </div>
+            ))}
+          </div>
+        )}
+        {useCustomDate && sowingDate && (
+          <div style={{ marginTop: 6, fontSize: 11, color: '#2ecc71' }}>
+            📅 Semis prévu le {new Date(sowingDate).toLocaleDateString('fr-FR', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
+          </div>
+        )}
+      </div>
+
       <div onClick={handleConfirm} style={{ ...S.primaryBtn, background: targetSerre ? plant.color : 'rgba(255,255,255,0.1)', color: targetSerre ? '#fff' : 'rgba(255,255,255,0.3)', cursor: targetSerre ? 'pointer' : 'default' }}>
         🌱 Semer {qty} × {plant.name} →
       </div>
@@ -1577,8 +1651,8 @@ export default function App() {
     showToast(`🏠 "${name}" ajoutée !`);
   };
 
-  const handleSow = useCallback((plant, qty, serreId) => {
-    const plantedDate = new Date().toISOString();
+  const handleSow = useCallback((plant, qty, serreId, customPlantedDate = null) => {
+    const plantedDate = customPlantedDate || new Date().toISOString();
     setSerres(prev => prev.map(s => {
       if (s.id !== serreId) return s;
       const alveoles = [...s.alveoles];
