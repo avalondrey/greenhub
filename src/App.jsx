@@ -1,5 +1,6 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { PLANTS_DB, PLANTS_SIMPLE, generateTasks, estimateYield } from './db/plants.js';
+import PhaserGame from './components/PhaserGame';
 
 // ─── GARDEN OBJECTS DATABASE ──────────────────────────────────────────────────
 // Objets du jardin réel : arbres, haies, arbustes, petits fruits, cabanons, serres
@@ -1176,7 +1177,7 @@ function SerreScreen({ serres, onAddSerre, onTransplant, onRemoveSerreSeed, onMo
             🏠 {serre.name}
             <span style={{ marginLeft: 8, fontSize: 10, color: 'rgba(255,255,255,0.3)', fontWeight: 400 }}>4×6 alvéoles · {serre.alveoles.filter(Boolean).length} occupées</span>
           </div>
-          <IsometricMiniSerre key={tick} serre={serre} selectedIdx={selectedAlv?.serreId === serre.id ? selectedAlv.idx : null} movingIdx={movingFromIdx !== null && selectedAlv?.serreId === serre.id ? movingFromIdx : null} onCellClick={(idx) => handleCellClick(idx, serre)} />
+          <PhaserGame serre={serre} onCellClick={(idx) => handleCellClick(idx, serre)} />
           {showTransplant && selectedAlv?.serreId === serre.id && (() => {
             const alv = serre.alveoles[selectedAlv.idx];
             const ad = serre.alveoleData?.[selectedAlv.idx];
