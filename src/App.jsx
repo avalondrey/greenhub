@@ -1,7 +1,6 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { PLANTS_DB, PLANTS_SIMPLE, generateTasks, estimateYield } from './db/plants.js';
 import useTileRenderer from './hooks/useTileRenderer.js';
-import MiniSerre from './components/MiniSerre.jsx';
 
 // ─── GARDEN OBJECTS DATABASE ──────────────────────────────────────────────────
 // Objets du jardin réel : arbres, haies, arbustes, petits fruits, cabanons, serres
@@ -120,6 +119,11 @@ const TILESET_GROWTH = [
 // Map each plantId to its tileset image file and row index (0-based)
 // PLANT_STAGE_TILESET_MAP conservé pour les autres plantes (utilisé hors serre)
 const PLANT_STAGE_TILESET_MAP = {
+  // S01 — tomates (manquaient → fallback emoji avant)
+  'tomate-coeur-de-boeuf':  { file: 'S01_tomates1.jpg', row: 0 },
+  'tomate-cerise':           { file: 'S01_tomates1.jpg', row: 1 },
+  'tomate-roma':             { file: 'S01_tomates1.jpg', row: 2 },
+  'tomate-ananas':           { file: 'S01_tomates1.jpg', row: 3 },
   'tomate-noire-de-crimee': { file: 'S02_solanacees.jpg', row: 0 },
   'poivron-ogea': { file: 'S02_solanacees.jpg', row: 1 },
   'aubergine-beaute': { file: 'S02_solanacees.jpg', row: 2 },
@@ -740,19 +744,22 @@ function IsoTerrainBlock({ cx, cy, selected, isMoving, plant, stage, stageIdx, o
           {!isInDirt && (
             <ellipse cx={cx} cy={dirtSurfaceY} rx={imgW * 0.2} ry={imgW * 0.06} fill={glowColor} opacity={0.4}/>
           )}
+          {/* Crop SVG correct : clipPath + transform pour extraire la bonne cellule */}
+          <defs>
+            <clipPath id={`clip-${plantId}-${stageIdxSafe}`}>
+              <rect x={cx - imgW / 2} y={emojiY} width={imgW} height={imgH} />
+            </clipPath>
+          </defs>
           <image
             href={`${TILESET_BASE}${tileInfo.file}`}
-            x={cx - imgW / 2}
-            y={emojiY}
-            width={imgW}
-            height={imgH}
-            hrefX={srcX}
-            hrefY={srcY}
-            hrefWidth={srcW}
-            hrefHeight={srcH}
+            x={cx - imgW / 2 - (srcX / srcW) * imgW}
+            y={emojiY - (srcY / srcH) * imgH}
+            width={(TILESET_IMG_W / srcW) * imgW}
+            height={((TILESET_IMG_H - TILESET_TITLE_H) / srcH) * imgH}
+            clipPath={`url(#clip-${plantId}-${stageIdxSafe})`}
             opacity={opacity}
-            preserveAspectRatio="xMidYMid meet"
-            style={{ filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.5))', imageRendering: 'pixelated' }}
+            preserveAspectRatio="none"
+            style={{ imageRendering: 'pixelated', filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.5))' }}
           />
           {isInDirt && (
             <ellipse cx={cx} cy={dirtSurfaceY} rx={imgW * 0.3} ry={imgW * 0.1} fill="#8b5e3c" opacity={0.7}/>
@@ -2261,15 +2268,6 @@ export default function App() {
     showToast('✓ Graine déplacée');
   }, []);
 
-  const handleSetStage = useCallback((serreId, alvIdx, status) => {
-    setSerres(prev => prev.map(s => {
-      if (s.id !== serreId) return s;
-      const alveoleData = { ...(s.alveoleData || {}) };
-      alveoleData[alvIdx] = { ...(alveoleData[alvIdx] || {}), status };
-      return { ...s, alveoleData };
-    }));
-  }, []);
-
   const handleMove = useCallback((fromRow, fromCol, toRow, toCol) => {
     setGardenGrid(prev => {
       const ng = prev.map(r => [...r]);
@@ -2326,7 +2324,7 @@ export default function App() {
       </div>
 
       <div style={{ padding: '14px 20px 0' }}>
-        {tab === 'serres' && <MiniSerre serres={serres} plants={PLANTS_DB} onAddSerre={addSerre} onSetStage={handleSetStage} onTransplant={handleTransplant} />}
+        {tab === 'serres' && <SerreScreen serres={serres} onAddSerre={addSerre} onTransplant={handleTransplant} onRemoveSerreSeed={handleRemoveSerreSeed} onMoveSerreSeed={handleMoveSerreSeed} />}
         {tab === 'jardin' && <GardenScreen grid={gardenGrid} onMove={handleMove} gardenArea={gardenArea} />}
         {tab === 'real_garden' && <GardenRealScreen permanentPlants={permanentPlants} onAddPermanent={(obj) => { setPermanentPlants(p => [...p, obj]); showToast(`🌳 ${obj.name} ajouté au jardin !`); }} onRemovePermanent={(uid) => { setPermanentPlants(p => p.filter(x => x.uid !== uid)); showToast('🗑️ Élément retiré'); }} />}
         {tab === 'semer' && <SowingScreen serres={serres} onAddSerre={addSerre} onSow={handleSow} />}

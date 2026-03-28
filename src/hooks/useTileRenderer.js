@@ -21,7 +21,7 @@ const TILE_D = 30;    // side face depth
 
 // ─── TILESET CONFIG ──────────────────────────────────────────────────────────
 // Tilesets nettoyés : 1340×720, grille 5 cols × 4 rows, pas de barre de titre
-const TILESET_BASE = '/tileset/stades-serre/?v=2';
+const TILESET_BASE = '/tileset/stades-serre/';
 const PT_IMG_W = 1340, PT_IMG_H = 720;
 const PT_ROWS = 4, PT_COLS = 5;
 const PT_TILE_W = PT_IMG_W / PT_COLS;           // 268
