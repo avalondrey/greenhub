@@ -561,6 +561,38 @@ function IsoDefs() {
         <rect x="0" y="6" width="8" height="1" fill="#b08848" opacity="0.4"/>
       </pattern>
 
+      {/* PATTERN terre avec sillons pour semis graine */}
+      <pattern id="isoSoilSowPat" x="0" y="0" width="12" height="12" patternUnits="userSpaceOnUse">
+        {/* Base terre sombre */}
+        <rect width="12" height="12" fill="#7a5030"/>
+        {/* Ligne de sillon principale */}
+        <rect x="0" y="4" width="12" height="2" fill="#5a3820" opacity="0.8"/>
+        {/* Sillons secondaires */}
+        <rect x="0" y="1" width="12" height="1" fill="#6a4228" opacity="0.5"/>
+        <rect x="0" y="8" width="12" height="1" fill="#6a4228" opacity="0.5"/>
+        {/* Petites graines dans le sillon */}
+        <circle cx="2" cy="5" r="1.2" fill="#8b5e3c" opacity="0.9"/>
+        <circle cx="6" cy="5" r="1.2" fill="#8b5e3c" opacity="0.9"/>
+        <circle cx="10" cy="5" r="1.2" fill="#8b5e3c" opacity="0.9"/>
+        {/* Texture terre */}
+        <rect x="1" y="2" width="1" height="1" fill="#9e6e48" opacity="0.4"/>
+        <rect x="5" y="7" width="2" height="1" fill="#5a3820" opacity="0.5"/>
+        <rect x="9" y="2" width="1" height="1" fill="#9e6e48" opacity="0.3"/>
+        <rect x="3" y="9" width="1" height="1" fill="#9e6e48" opacity="0.4"/>
+        <rect x="8" y="10" width="2" height="1" fill="#6a4228" opacity="0.4"/>
+      </pattern>
+
+      {/* PATTERN terre preparee sans sillons (germe/levee) */}
+      <pattern id="isoSoilGermPat" x="0" y="0" width="10" height="10" patternUnits="userSpaceOnUse">
+        <rect width="10" height="10" fill="#8b5e3c"/>
+        <rect x="0" y="0" width="10" height="2" fill="#7a5030" opacity="0.6"/>
+        <rect x="2" y="2" width="2" height="1" fill="#9e6e48" opacity="0.5"/>
+        <rect x="7" y="4" width="1" height="1" fill="#6a4228" opacity="0.5"/>
+        <rect x="1" y="6" width="1" height="2" fill="#7a5030" opacity="0.4"/>
+        <rect x="5" y="8" width="2" height="1" fill="#9e6e48" opacity="0.3"/>
+        <rect x="8" y="2" width="1" height="1" fill="#6a4228" opacity="0.4"/>
+      </pattern>
+
       {/* Dégradé ciel */}
       <linearGradient id="isoSkyGrad" x1="0" y1="0" x2="0" y2="1">
         <stop offset="0%" stopColor="#b8d4f0"/>
@@ -701,8 +733,17 @@ function IsoTerrainBlock({ cx, cy, selected, isMoving, plant, stage, stageIdx, o
       <polygon points={grassRightPts} fill="#3d8a18" opacity={0.9}/>
       {/* Pixels crénelés */}
       {crenel}
-      {/* Face top */}
-      <polygon points={topPts} fill={selected ? "url(#isoGrassSelPat)" : "url(#isoGrassPat)"} />
+      {/* Face top - selon stade de croissance */}
+      {stageIdxSafe === 0 ? (
+        // Stade 0 : terre avec sillons de semis
+        <polygon points={topPts} fill="url(#isoSoilSowPat)" />
+      ) : stageIdxSafe === 1 ? (
+        // Stade 1 : terre preparee sans sillons (germe)
+        <polygon points={topPts} fill="url(#isoSoilGermPat)" />
+      ) : (
+        // Stade 2+ : herbe normale
+        <polygon points={topPts} fill={selected ? "url(#isoGrassSelPat)" : "url(#isoGrassPat)"} />
+      )}
       {/* Teinte de croissance sur la tuile */}
       {plant && stage && (
         <polygon points={topPts} fill={stageColors[stageIdxSafe] || stageColors[0]} style={{ mixBlendMode: 'overlay' }}/>
