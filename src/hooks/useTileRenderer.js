@@ -1,0 +1,699 @@
+// ── TILE RENDERER v1 — Canvas 2D Isometric Engine ─────────────────────────
+// Remplace le rendu SVG par un vrai moteur Canvas 2D pixel-perfect.
+//
+// Avantages :
+//   - imageSmoothingEnabled = false → pixels nets, pas de flou SVG
+//   - Les sprites tileset sont déjà isométriques → pas de transforms CSS
+//   - Painter's algorithm (arrière→avant) pour la profondeur
+//   - 0 overhead DOM par tuile
+//   - Supporte TOUS les tilesets (10 fichiers, 35 plantes)
+//
+// Utilisation :
+//   const { canvasRef, render, ready, getClickedCell } = useTileRenderer();
+//   <canvas ref={canvasRef} onClick={handleClick} />
+//   useEffect(() => render(canvasRef.current, serre, sel, mov), [serre, sel, mov, ready]);
+
+import { useState, useEffect, useRef, useCallback } from 'react';
+import { PLANTS_DB } from '../db/plants.js';
+
+// ─── GRID CONSTANTS ──────────────────────────────────────────────────────────
+export const GRID_COLS = 4;
+export const GRID_ROWS = 6;
+const TILE_W = 100;   // isometric diamond width
+const TILE_H = 50;    // diamond height (top face)
+const TILE_D = 30;    // side face depth
+
+// ─── TILESET CONFIG ──────────────────────────────────────────────────────────
+const TILESET_BASE = '/tileset/stades-serre/';
+const PT_IMG_W = 1344, PT_IMG_H = 768, PT_TITLE_H = 50;
+const PT_ROWS = 4, PT_COLS = 5;
+const PT_TILE_W = PT_IMG_W / PT_COLS;         // ~268.8
+const PT_TILE_H = (PT_IMG_H - PT_TITLE_H) / PT_ROWS; // ~179.5
+const PLANT_BG = { r: 26, g: 22, b: 39 };
+const BG_DIST = 50;
+const BG_FEATHER = 25;
+
+// ─── UNIFIED TILE MAP (all plants → tileset file + row) ─────────────────────
+const TILE_MAP = {
+  // S01_tomates1.jpg
+  'tomate-coeur-de-boeuf': { file: 'S01_tomates1.jpg', row: 0 },
+  'tomate-cerise':         { file: 'S01_tomates1.jpg', row: 1 },
+  'tomate-roma':           { file: 'S01_tomates1.jpg', row: 2 },
+  'tomate-ananas':         { file: 'S01_tomates1.jpg', row: 3 },
+  // S02_solanacees.jpg
+  'tomate-noire-de-crimee': { file: 'S02_solanacees.jpg', row: 0 },
+  'poivron-ogea':            { file: 'S02_solanacees.jpg', row: 1 },
+  'aubergine-beaute':        { file: 'S02_solanacees.jpg', row: 2 },
+  'concombre-libanais':      { file: 'S02_solanacees.jpg', row: 3 },
+  // S03_courgettes_melon_mais.jpg
+  'courgette-noire':  { file: 'S03_courgettes_melon_mais.jpg', row: 0 },
+  'courgette-jaune':  { file: 'S03_courgettes_melon_mais.jpg', row: 1 },
+  'melon-cantaloup':  { file: 'S03_courgettes_melon_mais.jpg', row: 2 },
+  'mais-doux':        { file: 'S03_courgettes_melon_mais.jpg', row: 3 },
+  // S04_haricots_poireau_oignon.jpg
+  'haricot-vert':   { file: 'S04_haricots_poireau_oignon.jpg', row: 0 },
+  'haricot-beurre': { file: 'S04_haricots_poireau_oignon.jpg', row: 1 },
+  'poireau-bleu':   { file: 'S04_haricots_poireau_oignon.jpg', row: 2 },
+  'oignon-jaune':   { file: 'S04_haricots_poireau_oignon.jpg', row: 3 },
+  // S05_ail_carottes_radis.jpg
+  'ail-rose':            { file: 'S05_ail_carottes_radis.jpg', row: 0 },
+  'carotte-nantaise':    { file: 'S05_ail_carottes_radis.jpg', row: 1 },
+  'carotte-colorée':     { file: 'S05_ail_carottes_radis.jpg', row: 2 },
+  'radis-cherry-belle':  { file: 'S05_ail_carottes_radis.jpg', row: 3 },
+  // S06_racines_feuilles1.jpg
+  'betterave-ronde':   { file: 'S06_racines_feuilles1.jpg', row: 0 },
+  'patate-douce':      { file: 'S06_racines_feuilles1.jpg', row: 1 },
+  'celeri-branche':    { file: 'S06_racines_feuilles1.jpg', row: 2 },
+  'epinard-monstrueux':{ file: 'S06_racines_feuilles1.jpg', row: 3 },
+  // S07_salades_chou.jpg
+  'laitue-batavia': { file: 'S07_salades_chou.jpg', row: 0 },
+  'laitue-romaine': { file: 'S07_salades_chou.jpg', row: 1 },
+  'mesclun':        { file: 'S07_salades_chou.jpg', row: 2 },
+  'chou-bleu':      { file: 'S07_salades_chou.jpg', row: 3 },
+  // S08_brocoli_fraises_basilic.jpg
+  'brocoli':              { file: 'S08_brocoli_fraises_basilic.jpg', row: 0 },
+  'fraise-gariguette':    { file: 'S08_brocoli_fraises_basilic.jpg', row: 1 },
+  'fraise-mara-des-bois': { file: 'S08_brocoli_fraises_basilic.jpg', row: 2 },
+  'basilic-grand-vert':   { file: 'S08_brocoli_fraises_basilic.jpg', row: 3 },
+  // S09_herbes1.jpg
+  'basilic-thaï':   { file: 'S09_herbes1.jpg', row: 0 },
+  'persilCommun':   { file: 'S09_herbes1.jpg', row: 1 },
+  'ciboulette':     { file: 'S09_herbes1.jpg', row: 2 },
+  'menthe':         { file: 'S09_herbes1.jpg', row: 3 },
+  // S10_herbes2.jpg
+  'thym':    { file: 'S10_herbes2.jpg', row: 0 },
+  'romarin': { file: 'S10_herbes2.jpg', row: 1 },
+  'origan':  { file: 'S10_herbes2.jpg', row: 2 },
+};
+
+// ─── STAGE VISUAL CONFIG (5 stages matching tileset columns) ────────────────
+const STAGE_EMOJIS = ['🟤', '🌱', '🌿', '🌿', '🪴'];
+const STAGE_SCALES = [0.4, 0.55, 0.75, 0.95, 1.15];
+
+// ─── IMAGE CACHE ─────────────────────────────────────────────────────────────
+const imageCache = new Map();
+const loadingPromises = new Map();
+
+function loadImage(url) {
+  if (imageCache.has(url)) return Promise.resolve(imageCache.get(url));
+  if (loadingPromises.has(url)) return loadingPromises.get(url);
+
+  const p = new Promise((resolve, reject) => {
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.onload = () => { imageCache.set(url, img); loadingPromises.delete(url); resolve(img); };
+    img.onerror = () => { loadingPromises.delete(url); console.warn('[TileRenderer] Failed:', url); reject(url); };
+    img.src = url;
+  });
+  loadingPromises.set(url, p);
+  return p;
+}
+
+// ─── SPRITE CACHE (pre-cropped canvases with BG removed) ────────────────────
+const spriteCache = {}; // "file-row-col" → canvas
+
+function removeBackground(ctx, w, h, bg) {
+  const id = ctx.getImageData(0, 0, w, h);
+  const d = id.data;
+  for (let i = 0; i < d.length; i += 4) {
+    const dist = Math.sqrt((d[i]-bg.r)**2 + (d[i+1]-bg.g)**2 + (d[i+2]-bg.b)**2);
+    if (dist < BG_DIST) d[i+3] = 0;
+    else if (dist < BG_DIST + BG_FEATHER) d[i+3] = Math.round(d[i+3] * ((dist - BG_DIST) / BG_FEATHER));
+  }
+  ctx.putImageData(id, 0, 0);
+}
+
+async function buildSprite(file, row, col) {
+  const key = `${file}-${row}-${col}`;
+  if (spriteCache[key]) return spriteCache[key];
+
+  const img = await loadImage(TILESET_BASE + file);
+  const sprW = Math.round(PT_TILE_W - 20);
+  const sprH = Math.round((PT_TILE_H - 4) * 0.65);
+
+  const cvs = document.createElement('canvas');
+  cvs.width = sprW; cvs.height = sprH;
+  const ctx = cvs.getContext('2d');
+  ctx.imageSmoothingEnabled = false;
+  ctx.drawImage(img,
+    col * PT_TILE_W + 10, PT_TITLE_H + row * PT_TILE_H + 4,
+    sprW, sprH, 0, 0, sprW, sprH
+  );
+  removeBackground(ctx, sprW, sprH, PLANT_BG);
+  spriteCache[key] = cvs;
+  return cvs;
+}
+
+async function buildAllSpritesForFile(file) {
+  const img = await loadImage(TILESET_BASE + file);
+  for (let row = 0; row < PT_ROWS; row++) {
+    for (let col = 0; col < PT_COLS; col++) {
+      const key = `${file}-${row}-${col}`;
+      if (spriteCache[key]) continue;
+      const sprW = Math.round(PT_TILE_W - 20);
+      const sprH = Math.round((PT_TILE_H - 4) * 0.65);
+      const cvs = document.createElement('canvas');
+      cvs.width = sprW; cvs.height = sprH;
+      const ctx = cvs.getContext('2d');
+      ctx.imageSmoothingEnabled = false;
+      ctx.drawImage(img, col * PT_TILE_W + 10, PT_TITLE_H + row * PT_TILE_H + 4, sprW, sprH, 0, 0, sprW, sprH);
+      removeBackground(ctx, sprW, sprH, PLANT_BG);
+      spriteCache[key] = cvs;
+    }
+  }
+}
+
+// ─── ISO MATH ────────────────────────────────────────────────────────────────
+function isoToScreen(c, r) {
+  return {
+    x: (c - r) * (TILE_W / 2),
+    y: (c + r) * (TILE_H / 2),
+  };
+}
+
+function screenToCell(px, py, ox, oy) {
+  const rx = px - ox;
+  const ry = py - oy;
+  // Inverse iso transform
+  const fc = (rx / (TILE_W / 2) + ry / (TILE_H / 2)) / 2;
+  const fr = (ry / (TILE_H / 2) - rx / (TILE_W / 2)) / 2;
+  const cc = Math.floor(fc), cr = Math.floor(fr);
+  let best = null, bestDist = Infinity;
+  for (let dr = 0; dr <= 1; dr++) {
+    for (let dc = 0; dc <= 1; dc++) {
+      const tr = cr + dr, tc = cc + dc;
+      if (tr < 0 || tr >= GRID_ROWS || tc < 0 || tc >= GRID_COLS) continue;
+      const pos = isoToScreen(tc, tr);
+      const cx = pos.x + TILE_W / 2;
+      const cy = pos.y + TILE_H / 2;
+      const dx = Math.abs(rx - cx) / (TILE_W / 2);
+      const dy = Math.abs(ry - cy) / (TILE_H / 2);
+      if (dx + dy <= 1.15) { // small tolerance for depth area
+        const dist = dx + dy;
+        if (dist < bestDist) { bestDist = dist; best = tr * GRID_COLS + tc; }
+      }
+    }
+  }
+  return best;
+}
+
+// ─── GRID LAYOUT CALCULATION ─────────────────────────────────────────────────
+function calcGridLayout() {
+  const allPos = [];
+  for (let r = 0; r < GRID_ROWS; r++)
+    for (let c = 0; c < GRID_COLS; c++)
+      allPos.push(isoToScreen(c, r));
+
+  const minX = Math.min(...allPos.map(p => p.x));
+  const maxX = Math.max(...allPos.map(p => p.x));
+  const minY = Math.min(...allPos.map(p => p.y));
+  const maxY = Math.max(...allPos.map(p => p.y)) + TILE_H + TILE_D;
+
+  const padX = 40, padTop = 80, padBot = 30;
+  return {
+    canvasW: maxX - minX + padX * 2,
+    canvasH: maxY - minY + padTop + padBot,
+    ox: -minX + padX,
+    oy: -minY + padTop,
+    padTop,
+  };
+}
+
+// ─── DRAWING HELPERS ─────────────────────────────────────────────────────────
+
+function drawSky(ctx, w, h) {
+  const grad = ctx.createLinearGradient(0, 0, 0, h);
+  grad.addColorStop(0, '#1a2a44');
+  grad.addColorStop(0.5, '#1e3a5f');
+  grad.addColorStop(0.85, '#0d2818');
+  grad.addColorStop(1, '#091a10');
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, w, h);
+}
+
+function drawClouds(ctx) {
+  ctx.fillStyle = 'rgba(255,255,255,0.15)';
+  const clouds = [[0.05,0.04,0.07,0.025],[0.15,0.06,0.05,0.02],[0.30,0.025,0.06,0.022],[0.45,0.05,0.04,0.018],[0.7,0.035,0.055,0.02],[0.85,0.055,0.04,0.017]];
+  clouds.forEach(([xf,yf,wf,hf]) => {
+    const cx = ctx.canvas.width * xf / (window.devicePixelRatio || 1);
+    const cy = 18 + ctx.canvas.height * yf / (window.devicePixelRatio || 1);
+    const cw = ctx.canvas.width * wf / (window.devicePixelRatio || 1);
+    const ch = ctx.canvas.height * hf / (window.devicePixelRatio || 1);
+    ctx.beginPath();
+    ctx.roundRect(cx, cy, cw, ch, 4);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.roundRect(cx + cw*0.15, cy - ch*0.4, cw*0.7, ch, 3);
+    ctx.fill();
+  });
+}
+
+function drawGroundShadow(ctx, w, h) {
+  ctx.fillStyle = 'rgba(0,0,0,0.10)';
+  ctx.beginPath();
+  ctx.ellipse(w / 2, h - 16, w * 0.34, 10, 0, 0, Math.PI * 2);
+  ctx.fill();
+}
+
+// ─── DIRT BLOCK (canvas paths) ───────────────────────────────────────────────
+function drawDirtBlock(ctx, x, y, opts = {}) {
+  const { selected, isMoving, stageTint } = opts;
+  const hw = TILE_W / 2;
+  const hh = TILE_H / 2;
+  const cx = x + hw;
+
+  // ── Top face (diamond) ──
+  ctx.beginPath();
+  ctx.moveTo(cx, y);
+  ctx.lineTo(x + TILE_W, y + hh);
+  ctx.lineTo(cx, y + TILE_H);
+  ctx.lineTo(x, y + hh);
+  ctx.closePath();
+
+  // Gradient fill for top
+  const topGrad = ctx.createLinearGradient(x, y, x + TILE_W, y + TILE_H);
+  if (selected) {
+    topGrad.addColorStop(0, '#72d63a');
+    topGrad.addColorStop(0.5, '#6aaf2e');
+    topGrad.addColorStop(1, '#5ea028');
+  } else {
+    topGrad.addColorStop(0, '#5aab2a');
+    topGrad.addColorStop(0.5, '#4e9e22');
+    topGrad.addColorStop(1, '#448e1c');
+  }
+  ctx.fillStyle = topGrad;
+  ctx.fill();
+
+  // Grass pixel texture on top
+  ctx.save();
+  ctx.beginPath();
+  ctx.moveTo(cx, y);
+  ctx.lineTo(x + TILE_W, y + hh);
+  ctx.lineTo(cx, y + TILE_H);
+  ctx.lineTo(x, y + hh);
+  ctx.closePath();
+  ctx.clip();
+
+  ctx.fillStyle = '#4e9e22';
+  for (let i = 0; i < 8; i++) {
+    const px = x + 6 + i * 12 + Math.sin(i * 1.7) * 4;
+    const py = y + 8 + Math.cos(i * 2.3) * 6;
+    ctx.fillRect(Math.round(px), Math.round(py), 3, 4);
+  }
+  ctx.fillStyle = '#3d8a18';
+  for (let i = 0; i < 5; i++) {
+    const px = x + 10 + i * 18 + Math.cos(i * 1.3) * 3;
+    const py = y + 14 + Math.sin(i * 1.9) * 5;
+    ctx.fillRect(Math.round(px), Math.round(py), 2, 5);
+  }
+  ctx.fillStyle = '#62b830';
+  for (let i = 0; i < 4; i++) {
+    const px = x + 14 + i * 22;
+    const py = y + 6 + Math.sin(i * 2.7) * 4;
+    ctx.fillRect(Math.round(px), Math.round(py), 2, 3);
+  }
+
+  // Stage tint overlay
+  if (stageTint) {
+    ctx.fillStyle = stageTint;
+    ctx.fill();
+  }
+  ctx.restore();
+
+  // Top outline
+  ctx.beginPath();
+  ctx.moveTo(cx, y);
+  ctx.lineTo(x + TILE_W, y + hh);
+  ctx.lineTo(cx, y + TILE_H);
+  ctx.lineTo(x, y + hh);
+  ctx.closePath();
+  ctx.strokeStyle = selected ? '#ffffff' : '#2d6e10';
+  ctx.lineWidth = selected ? 2 : 1;
+  ctx.globalAlpha = selected ? 0.9 : 0.5;
+  ctx.stroke();
+  ctx.globalAlpha = 1;
+
+  // ── Left face ──
+  ctx.beginPath();
+  ctx.moveTo(x, y + hh);
+  ctx.lineTo(cx, y + TILE_H);
+  ctx.lineTo(cx, y + TILE_H + TILE_D);
+  ctx.lineTo(x, y + hh + TILE_D);
+  ctx.closePath();
+  const lGrad = ctx.createLinearGradient(x, y + hh, x + hw, y + TILE_H + TILE_D);
+  lGrad.addColorStop(0, '#6b4226');
+  lGrad.addColorStop(1, '#5a3520');
+  ctx.fillStyle = lGrad;
+  ctx.fill();
+  // Dirt texture
+  ctx.fillStyle = 'rgba(0,0,0,0.08)';
+  for (let i = 0; i < 4; i++) {
+    ctx.fillRect(x + 5 + i * 10, y + TILE_H + 4 + Math.sin(i) * 3, 8, 2);
+  }
+  ctx.strokeStyle = '#3d2010';
+  ctx.lineWidth = 1;
+  ctx.globalAlpha = 0.4;
+  ctx.stroke();
+  ctx.globalAlpha = 1;
+
+  // ── Right face ──
+  ctx.beginPath();
+  ctx.moveTo(cx, y + TILE_H);
+  ctx.lineTo(x + TILE_W, y + hh);
+  ctx.lineTo(x + TILE_W, y + hh + TILE_D);
+  ctx.lineTo(cx, y + TILE_H + TILE_D);
+  ctx.closePath();
+  const rGrad = ctx.createLinearGradient(cx, y + TILE_H, x + TILE_W, y + hh + TILE_D);
+  rGrad.addColorStop(0, '#7d4f30');
+  rGrad.addColorStop(1, '#6b4226');
+  ctx.fillStyle = rGrad;
+  ctx.fill();
+  ctx.fillStyle = 'rgba(0,0,0,0.06)';
+  for (let i = 0; i < 4; i++) {
+    ctx.fillRect(cx + 5 + i * 10, y + TILE_H + 5 + Math.cos(i) * 2, 8, 2);
+  }
+  ctx.strokeStyle = '#3d2010';
+  ctx.lineWidth = 1;
+  ctx.globalAlpha = 0.3;
+  ctx.stroke();
+  ctx.globalAlpha = 1;
+
+  // ── Grass strip top edge ──
+  const grassH = 4;
+  // Left grass
+  ctx.beginPath();
+  ctx.moveTo(x, y + hh);
+  ctx.lineTo(cx, y + TILE_H);
+  ctx.lineTo(cx, y + TILE_H + grassH);
+  ctx.lineTo(x, y + hh + grassH);
+  ctx.closePath();
+  ctx.fillStyle = '#4a9e20';
+  ctx.globalAlpha = 0.9;
+  ctx.fill();
+  ctx.globalAlpha = 1;
+
+  // Right grass
+  ctx.beginPath();
+  ctx.moveTo(cx, y + TILE_H);
+  ctx.lineTo(x + TILE_W, y + hh);
+  ctx.lineTo(x + TILE_W, y + hh + grassH);
+  ctx.lineTo(cx, y + TILE_H + grassH);
+  ctx.closePath();
+  ctx.fillStyle = '#3d8a18';
+  ctx.globalAlpha = 0.9;
+  ctx.fill();
+  ctx.globalAlpha = 1;
+
+  // ── Pebbles ──
+  ctx.fillStyle = '#5a3820';
+  ctx.globalAlpha = 0.6;
+  ctx.beginPath();
+  ctx.ellipse(cx - hw * 0.5, y + TILE_H + TILE_D - 4, 2.5, 1.5, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = '#4a3018';
+  ctx.globalAlpha = 0.5;
+  ctx.beginPath();
+  ctx.ellipse(cx + hw * 0.3, y + hh + TILE_D - 3, 2, 1, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.globalAlpha = 1;
+
+  // ── Moving indicator ──
+  if (isMoving) {
+    ctx.beginPath();
+    ctx.moveTo(cx, y);
+    ctx.lineTo(x + TILE_W, y + hh);
+    ctx.lineTo(cx, y + TILE_H);
+    ctx.lineTo(x, y + hh);
+    ctx.closePath();
+    ctx.fillStyle = 'rgba(46,204,113,0.2)';
+    ctx.fill();
+    ctx.setLineDash([4, 2]);
+    ctx.strokeStyle = '#2ecc71';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+    ctx.setLineDash([]);
+    // Pin
+    ctx.font = '12px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'bottom';
+    ctx.fillText('📍', cx, y - 4);
+  }
+}
+
+// ─── PLANT SPRITE ON CANVAS ─────────────────────────────────────────────────
+function drawPlantSprite(ctx, x, y, spriteCvs, stageIdx, opts = {}) {
+  if (!spriteCvs) return;
+  const { selected } = opts;
+  const hw = TILE_W / 2;
+  const cx = x + hw;
+  const scale = STAGE_SCALES[stageIdx] || 0.5;
+
+  // Sprite dimensions
+  const sprW = spriteCvs.width;
+  const sprH = spriteCvs.height;
+  const drawW = TILE_W * (0.35 + scale * 0.38);
+  const drawH = drawW * (sprH / sprW);
+
+  // Position: float above the diamond top
+  const baseY = y + TILE_H * 0.5; // center of diamond
+  const sprX = cx - drawW / 2;
+  const sprY = baseY - drawH * (0.6 + stageIdx * 0.06);
+
+  // Shadow
+  ctx.fillStyle = 'rgba(0,0,0,0.18)';
+  ctx.beginPath();
+  ctx.ellipse(cx, baseY + 2, drawW * 0.22, drawW * 0.04, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Glow under plant
+  if (stageIdx >= 2) {
+    ctx.fillStyle = 'rgba(46,125,50,0.2)';
+    ctx.beginPath();
+    ctx.ellipse(cx, baseY, drawW * 0.15, drawW * 0.04, 0, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  // Draw sprite
+  ctx.imageSmoothingEnabled = false;
+  ctx.drawImage(spriteCvs, sprX, sprY, drawW, drawH);
+
+  // Selection highlight on top
+  if (selected) {
+    ctx.beginPath();
+    ctx.moveTo(cx, y);
+    ctx.lineTo(x + TILE_W, y + TILE_H / 2);
+    ctx.lineTo(cx, y + TILE_H);
+    ctx.lineTo(x, y + TILE_H / 2);
+    ctx.closePath();
+    ctx.fillStyle = 'rgba(255,255,255,0.10)';
+    ctx.fill();
+    ctx.strokeStyle = '#fff';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+  }
+
+  // Progress bar
+  if (stageIdx > 0) {
+    const barW = 14;
+    const barH = 2.5;
+    const barX = x + TILE_W - barW - 6;
+    const barY = y + TILE_H + TILE_D - 8;
+    ctx.fillStyle = 'rgba(0,0,0,0.35)';
+    ctx.beginPath();
+    ctx.roundRect(barX, barY, barW, barH, 1);
+    ctx.fill();
+    const colors = ['#4a9e20','#2e7d32','#388e3c','#43a047','#66bb6a'];
+    ctx.fillStyle = colors[stageIdx] || '#4a9e20';
+    ctx.beginPath();
+    ctx.roundRect(barX, barY, barW * ((stageIdx + 1) / PT_COLS), barH, 1);
+    ctx.fill();
+  }
+}
+
+// ─── EMOJI FALLBACK ──────────────────────────────────────────────────────────
+function drawEmoji(ctx, x, y, emoji, scale, opacity) {
+  const hw = TILE_W / 2;
+  const cx = x + hw;
+  const baseY = y + TILE_H;
+  const fontSize = Math.round(8 + scale * 12);
+
+  // Shadow
+  ctx.fillStyle = 'rgba(0,0,0,0.35)';
+  ctx.beginPath();
+  ctx.ellipse(cx, baseY + 1, fontSize * 0.4, fontSize * 0.12, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.save();
+  ctx.globalAlpha = opacity;
+  ctx.font = `${fontSize}px sans-serif`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(emoji, cx, baseY - fontSize * 0.5);
+  ctx.restore();
+}
+
+// ─── EMPTY CELL MARKER ──────────────────────────────────────────────────────
+function drawEmptyMarker(ctx, x, y) {
+  const hw = TILE_W / 2;
+  const cx = x + hw;
+  ctx.fillStyle = 'rgba(255,255,255,0.08)';
+  ctx.font = '10px monospace';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText('·', cx, y + TILE_H + 2);
+}
+
+// ─── MAIN HOOK ───────────────────────────────────────────────────────────────
+
+let _buildPromise = null;
+let _built = false;
+let _loadCallbacks = [];
+
+function notifyLoad() {
+  _built = true;
+  _loadCallbacks.forEach(cb => cb());
+  _loadCallbacks = [];
+}
+
+async function buildAllSprites() {
+  if (_buildPromise) return _buildPromise;
+  _buildPromise = (async () => {
+    // Collect unique files needed
+    const files = new Set(Object.values(TILE_MAP).map(t => t.file));
+    const promises = [...files].map(f => buildAllSpritesForFile(f).catch(e => console.warn('[TileRenderer]', e)));
+    await Promise.allSettled(promises);
+    notifyLoad();
+  })();
+  return _buildPromise;
+}
+
+export default function useTileRenderer() {
+  const canvasRef = useRef(null);
+  const [ready, setReady] = useState(_built);
+  const layoutRef = useRef(calcGridLayout());
+
+  // Start loading all sprites on mount
+  useEffect(() => {
+    if (_built) { setReady(true); return; }
+    _loadCallbacks.push(() => setReady(true));
+    buildAllSprites();
+  }, []);
+
+  // Get layout (memoized)
+  const layout = layoutRef.current;
+
+  // Get sprite for a plant
+  const getSprite = useCallback((plantId, stageIdx) => {
+    const info = TILE_MAP[plantId];
+    if (!info) return null;
+    const si = Math.min(Math.max(stageIdx, 0), PT_COLS - 1);
+    const key = `${info.file}-${info.row}-${si}`;
+    return spriteCache[key] || null;
+  }, []);
+
+  // Calculate stage from planted data
+  const calcStage = useCallback((plantedDate, daysToMaturity) => {
+    if (!plantedDate) return 0;
+    const elapsed = (Date.now() - new Date(plantedDate).getTime()) / 86400000;
+    const progress = Math.min(elapsed / (daysToMaturity || 60), 1);
+    return Math.min(Math.floor(progress * PT_COLS), PT_COLS - 1);
+  }, []);
+
+  // Get DB plant info
+  const getDbPlant = useCallback((plantId) => {
+    return PLANTS_DB.find(p => p.id === plantId) || null;
+  }, []);
+
+  // ─── RENDER ──────────────────────────────────────────────────────────────
+  const render = useCallback((canvas, serre, selectedIdx, movingIdx) => {
+    if (!canvas || !_built) return;
+
+    const ctx = canvas.getContext('2d');
+    const dpr = window.devicePixelRatio || 1;
+    const { canvasW, canvasH, ox, oy } = layout;
+
+    // Set canvas size with DPR
+    canvas.width = Math.round(canvasW * dpr);
+    canvas.height = Math.round(canvasH * dpr);
+    canvas.style.width = canvasW + 'px';
+    canvas.style.height = canvasH + 'px';
+    canvas.style.maxWidth = '100%';
+    canvas.style.display = 'block';
+    canvas.style.margin = '0 auto';
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.imageSmoothingEnabled = false;
+
+    // ── Background ──
+    drawSky(ctx, canvasW, canvasH);
+    drawClouds(ctx);
+    drawGroundShadow(ctx, canvasW, canvasH);
+
+    ctx.save();
+    ctx.translate(ox, oy);
+
+    // ── Draw tiles back to front (painter's algorithm) ──
+    for (let r = 0; r < GRID_ROWS; r++) {
+      for (let c = 0; c < GRID_COLS; c++) {
+        const idx = r * GRID_COLS + c;
+        const { x, y } = isoToScreen(c, r);
+        const alv = serre.alveoles[idx];
+        const isSelected = selectedIdx === idx;
+        const isMovingTile = movingIdx === idx;
+
+        if (alv) {
+          const dbPlant = getDbPlant(alv.plantId);
+          const ad = serre.alveoleData?.[idx];
+          const stageIdx = calcStage(ad?.plantedDate, dbPlant?.daysToMaturity);
+
+          // Stage tint for dirt block
+          const stageTints = [
+            'rgba(139,94,60,0.25)',
+            'rgba(74,158,32,0.18)',
+            'rgba(46,125,50,0.28)',
+            'rgba(46,125,50,0.40)',
+            'rgba(46,125,50,0.55)',
+          ];
+
+          // Draw dirt block
+          drawDirtBlock(ctx, x, y, {
+            selected: isSelected,
+            isMoving: isMovingTile,
+            stageTint: stageTints[stageIdx] || null,
+          });
+
+          // Try tileset sprite first
+          const sprite = getSprite(alv.plantId, stageIdx);
+          if (sprite) {
+            drawPlantSprite(ctx, x, y, sprite, stageIdx, { selected: isSelected });
+          } else {
+            // Emoji fallback
+            const emoji = dbPlant?.icon || '🌿';
+            drawEmoji(ctx, x, y, emoji, STAGE_SCALES[stageIdx] || 0.5, 0.6 + stageIdx * 0.1);
+          }
+        } else {
+          // Empty cell
+          drawDirtBlock(ctx, x, y, { selected: isSelected });
+          drawEmptyMarker(ctx, x, y);
+        }
+      }
+    }
+
+    ctx.restore();
+  }, [layout, getSprite, calcStage, getDbPlant]);
+
+  // ─── CLICK DETECTION ─────────────────────────────────────────────────────
+  const getClickedCell = useCallback((clientX, clientY) => {
+    const canvas = canvasRef.current;
+    if (!canvas) return null;
+    const rect = canvas.getBoundingClientRect();
+    const logicalW = parseFloat(canvas.style.width) || canvas.width;
+    const logicalH = parseFloat(canvas.style.height) || canvas.height;
+    const scaleX = logicalW / rect.width;
+    const scaleY = logicalH / rect.height;
+    const px = (clientX - rect.left) * scaleX;
+    const py = (clientY - rect.top) * scaleY;
+    return screenToCell(px, py, layout.ox, layout.oy);
+  }, [layout]);
+
+  return { canvasRef, render, ready, getClickedCell, TILE_MAP };
+}

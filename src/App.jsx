@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { PLANTS_DB, PLANTS_SIMPLE, generateTasks, estimateYield } from './db/plants.js';
-import useTileEngine, { TOMATO_TILE_MAP, TILESET_STAGE_COUNT } from './hooks/useTileFusion';
+import useTileRenderer from './hooks/useTileRenderer.js';
 
 // ─── GARDEN OBJECTS DATABASE ──────────────────────────────────────────────────
 // Objets du jardin réel : arbres, haies, arbustes, petits fruits, cabanons, serres
@@ -878,162 +878,38 @@ function IsoWoodPost({ cx, cy }) {
   );
 }
 
-// ── MINI-SERRE ISOMÉTRIQUE COMPLÈTE ──────────────────────────────────────────
-// Quand le moteur tileset est dispo → rendu direct via <image> (pixel art)
-// Sinon → fallback IsoTerrainBlock (SVG polygons + emoji)
+// ── MINI-SERRE ISOMÉTRIQUE COMPLÈTE — Canvas 2D Engine ──────────────────
+// Moteur de rendu Canvas 2D pixel-perfect.
+// Tous les sprites tileset sont dessinés via Canvas (pas de SVG).
+// Cliques → détection par inversion coordonnées iso.
 function IsometricMiniSerre({ serre, selectedIdx, movingIdx, onCellClick }) {
   const tick = useRealtimeGrowth();
-  const { getPlantTile, isTomato, terrainTile, blockW, blockH, diamondTopRatio, ready } = useTileEngine();
+  const { canvasRef, render, ready, getClickedCell } = useTileRenderer();
 
-  // ── Mode tileset : les cellules utilisent les vraies images ──
-  const anyTomato = serre.alveoles.some(a => a && isTomato(a.plantId));
-  const hasTileset = ready && anyTomato;
+  // Re-rend le canvas quand l'état change
+  useEffect(() => {
+    if (ready && canvasRef.current) {
+      render(canvasRef.current, serre, selectedIdx, movingIdx);
+    }
+  }, [ready, serre, selectedIdx, movingIdx, tick, render]);
 
-  // La grille iso utilise les dimensions du tileset natif
-  // mais le SVG viewBox s'adapte pour contenir toute la grille
-  // Position iso : chaque bloc fait blockW × blockH
-  const isoPos = (c, r) => ({
-    x: (c - r) * (blockW / 2),
-    y: (c + r) * (blockH / 2),
-  });
-
-  const allPos = [];
-  for (let r = 0; r < ISO_ROWS; r++)
-    for (let c = 0; c < ISO_COLS; c++)
-      allPos.push(isoPos(c, r));
-
-  const minX = Math.min(...allPos.map(p => p.x)) - blockW/2;
-  const maxX = Math.max(...allPos.map(p => p.x)) + blockW/2;
-  const minY = Math.min(...allPos.map(p => p.y));
-  const maxY = Math.max(...allPos.map(p => p.y)) + blockH;
-
-  const padX = 30, padTop = 60, padBot = 20;
-  const svgW = maxX - minX + padX * 2;
-  const svgH = maxY - minY + padTop + padBot;
-  const ox = -minX + padX;
-  const oy = -minY + padTop;
-
-  // Coins serre pour le dôme
-  const tl = isoPos(-0.5, -0.5);
-  const tr = isoPos(ISO_COLS-0.5, -0.5);
-  const bl = isoPos(-0.5, ISO_ROWS-0.5);
-  const br = isoPos(ISO_COLS-0.5, ISO_ROWS-0.5);
+  const handleClick = useCallback((e) => {
+    const idx = getClickedCell(e.clientX, e.clientY);
+    if (idx !== null) onCellClick(idx);
+  }, [getClickedCell, onCellClick]);
 
   return (
-    <svg width={svgW} height={svgH} viewBox={`0 0 ${svgW} ${svgH}`}
-      style={{ display:"block", margin:"0 auto", imageRendering:"pixelated", maxWidth:"100%" }}>
-      <IsoDefs />
-
-      {/* Fond ciel */}
-      <rect width={svgW} height={svgH} fill="url(#isoSkyGrad)"/>
-
-      {/* Nuages pixel */}
-      {[[60,18,28,10],[180,28,20,8],[300,12,24,9],[380,22,16,7]].map(([x,y,w,h],i)=>(
-        <g key={i} opacity={0.45}>
-          <rect x={x} y={y} width={w} height={h} rx={4} fill="#fff"/>
-          <rect x={x+4} y={y-4} width={w-8} height={h} rx={3} fill="#fff"/>
-        </g>
-      ))}
-
-      {/* Ombre sol */}
-      <ellipse cx={svgW/2} cy={svgH - 18} rx={svgW*0.36} ry={10}
-        fill="rgba(0,0,0,0.12)"/>
-
-      <g transform={`translate(${ox},${oy})`}>
-
-        {/* ── MODE MOTEUR TILESET : <image> direct ── */}
-        {hasTileset ? (
-          Array.from({length: ISO_ROWS}, (_,r) =>
-            Array.from({length: ISO_COLS}, (_,c) => {
-              const idx = r * ISO_COLS + c;
-              const {x, y} = isoPos(c, r);
-              const alv = serre.alveoles[idx];
-              const ad = serre.alveoleData?.[idx];
-              const dbPlant = alv ? PLANTS_DB.find(p => p.id === alv.plantId) : null;
-              const cx = x + blockW / 2;
-
-              // Calcul stade moteur tileset (5 stades)
-              let stageIdx = null;
-              if (alv) {
-                const elapsed = ad?.plantedDate
-                  ? (Date.now() - new Date(ad.plantedDate).getTime()) / (86400000)
-                  : 0;
-                const maturity = dbPlant?.daysToMaturity || 60;
-                const progress = Math.min(elapsed / maturity, 1);
-                stageIdx = Math.min(Math.floor(progress * TILESET_STAGE_COUNT), TILESET_STAGE_COUNT - 1);
-              }
-
-              // Choisir la bonne image
-              const isTom = alv && isTomato(alv.plantId);
-              const plantImg = isTom ? getPlantTile(alv.plantId, stageIdx ?? 0) : null;
-              const tileImg = plantImg || terrainTile;
-
-              if (!tileImg) return null;
-
-              // Positionner l'image : le diamond top du bloc aligné sur la grille iso
-              const imgTopOffset = Math.round(blockH * diamondTopRatio);
-              const imgX = cx - blockW / 2;
-              const imgY = y - imgTopOffset;
-
-              return (
-                <g key={idx} onClick={() => onCellClick(idx)} style={{ cursor: 'pointer' }}>
-                  <image
-                    href={tileImg}
-                    x={imgX}
-                    y={imgY}
-                    width={blockW}
-                    height={blockH}
-                  />
-                  {/* Sélection */}
-                  {selectedIdx === idx && (
-                    <polygon
-                      points={`${cx},${y} ${cx+blockW/2},${y+blockH/2} ${cx},${y+blockH} ${cx-blockW/2},${y+blockH/2}`}
-                      fill="rgba(255,255,255,0.12)" stroke="#fff" strokeWidth={2}
-                    />
-                  )}
-                  {/* Déplacement */}
-                  {movingIdx === idx && (
-                    <>
-                      <polygon
-                        points={`${cx},${y} ${cx+blockW/2},${y+blockH/2} ${cx},${y+blockH} ${cx-blockW/2},${y+blockH/2}`}
-                        fill="rgba(46,204,113,0.2)" stroke="#2ecc71" strokeWidth={2} strokeDasharray="4,2"
-                      />
-                      <text x={cx} y={y - 10} textAnchor="middle" fontSize="12" fill="#2ecc71"
-                        style={{ userSelect: 'none' }}>📍</text>
-                    </>
-                  )}
-                </g>
-              );
-            })
-          )
-        ) : (
-          /* ── FALLBACK SVG : IsoTerrainBlock classique ── */
-          Array.from({length: ISO_ROWS}, (_,r) =>
-            Array.from({length: ISO_COLS}, (_,c) => {
-              const idx = r * ISO_COLS + c;
-              const {x, y} = isoXY(c, r);
-              const alv = serre.alveoles[idx];
-              const ad = serre.alveoleData?.[idx];
-              const dbPlant = alv ? PLANTS_DB.find(p => p.id === alv.plantId) : null;
-              const stage = alv ? getGrowthStage(ad?.plantedDate, dbPlant?.daysToMaturity || 60) : null;
-              const stageIdx = stage ? Math.min(Math.floor(((Date.now() - new Date(ad?.plantedDate).getTime()) / (1000 * 60 * 60 * 24)) / (dbPlant?.daysToMaturity || 60) * (GROWTH_STAGES.length - 1)), GROWTH_STAGES.length - 1) : null;
-              return (
-                <IsoTerrainBlock
-                  key={idx}
-                  cx={x + TW/2} cy={y}
-                  selected={selectedIdx === idx}
-                  isMoving={movingIdx === idx}
-                  plant={alv}
-                  stage={stage}
-                  stageIdx={stageIdx}
-                  onClick={() => onCellClick(idx)}
-                />
-              );
-            })
-          )
-        )}
-      </g>
-    </svg>
+    <canvas
+      ref={canvasRef}
+      onClick={handleClick}
+      style={{
+        display: 'block',
+        margin: '0 auto',
+        maxWidth: '100%',
+        imageRendering: 'pixelated',
+        cursor: 'pointer',
+      }}
+    />
   );
 }
 
