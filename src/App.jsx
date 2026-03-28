@@ -889,14 +889,12 @@ function IsometricMiniSerre({ serre, selectedIdx, movingIdx, onCellClick }) {
   const anyTomato = serre.alveoles.some(a => a && isTomato(a.plantId));
   const hasTileset = ready && anyTomato;
 
-  // Dimensions de la grille selon le mode
-  const cellW = hasTileset ? blockW : TW;
-  const cellH = hasTileset ? blockH : (TH + TD);
-
-  // Fonction de position iso adaptée
+  // La grille iso utilise les dimensions du tileset natif
+  // mais le SVG viewBox s'adapte pour contenir toute la grille
+  // Position iso : chaque bloc fait blockW × blockH
   const isoPos = (c, r) => ({
-    x: (c - r) * (cellW / 2),
-    y: (c + r) * (cellH / 4),  // ratio isométrique
+    x: (c - r) * (blockW / 2),
+    y: (c + r) * (blockH / 2),
   });
 
   const allPos = [];
@@ -904,12 +902,12 @@ function IsometricMiniSerre({ serre, selectedIdx, movingIdx, onCellClick }) {
     for (let c = 0; c < ISO_COLS; c++)
       allPos.push(isoPos(c, r));
 
-  const minX = Math.min(...allPos.map(p => p.x)) - cellW/2;
-  const maxX = Math.max(...allPos.map(p => p.x)) + cellW/2;
+  const minX = Math.min(...allPos.map(p => p.x)) - blockW/2;
+  const maxX = Math.max(...allPos.map(p => p.x)) + blockW/2;
   const minY = Math.min(...allPos.map(p => p.y));
-  const maxY = Math.max(...allPos.map(p => p.y)) + cellH;
+  const maxY = Math.max(...allPos.map(p => p.y)) + blockH;
 
-  const padX = 50, padTop = 90, padBot = 40;
+  const padX = 30, padTop = 60, padBot = 20;
   const svgW = maxX - minX + padX * 2;
   const svgH = maxY - minY + padTop + padBot;
   const ox = -minX + padX;
@@ -952,7 +950,7 @@ function IsometricMiniSerre({ serre, selectedIdx, movingIdx, onCellClick }) {
               const alv = serre.alveoles[idx];
               const ad = serre.alveoleData?.[idx];
               const dbPlant = alv ? PLANTS_DB.find(p => p.id === alv.plantId) : null;
-              const cx = x + cellW / 2;
+              const cx = x + blockW / 2;
 
               // Calcul stade moteur tileset (5 stades)
               let stageIdx = null;
@@ -989,7 +987,7 @@ function IsometricMiniSerre({ serre, selectedIdx, movingIdx, onCellClick }) {
                   {/* Sélection */}
                   {selectedIdx === idx && (
                     <polygon
-                      points={`${cx},${y} ${cx+cellW/2},${y+cellH/4} ${cx},${y+cellH/2} ${cx-cellW/2},${y+cellH/4}`}
+                      points={`${cx},${y} ${cx+blockW/2},${y+blockH/2} ${cx},${y+blockH} ${cx-blockW/2},${y+blockH/2}`}
                       fill="rgba(255,255,255,0.12)" stroke="#fff" strokeWidth={2}
                     />
                   )}
@@ -997,10 +995,10 @@ function IsometricMiniSerre({ serre, selectedIdx, movingIdx, onCellClick }) {
                   {movingIdx === idx && (
                     <>
                       <polygon
-                        points={`${cx},${y} ${cx+cellW/2},${y+cellH/4} ${cx},${y+cellH/2} ${cx-cellW/2},${y+cellH/4}`}
+                        points={`${cx},${y} ${cx+blockW/2},${y+blockH/2} ${cx},${y+blockH} ${cx-blockW/2},${y+blockH/2}`}
                         fill="rgba(46,204,113,0.2)" stroke="#2ecc71" strokeWidth={2} strokeDasharray="4,2"
                       />
-                      <text x={cx} y={y - 6} textAnchor="middle" fontSize="8" fill="#2ecc71"
+                      <text x={cx} y={y - 10} textAnchor="middle" fontSize="12" fill="#2ecc71"
                         style={{ userSelect: 'none' }}>📍</text>
                     </>
                   )}
