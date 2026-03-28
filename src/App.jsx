@@ -618,51 +618,72 @@ function IsoTerrainBlock({ cx, cy, selected, isMoving, plant, stage, stageIdx, o
   const stageIdxSafe = stageIdx !== null && stageIdx !== undefined ? stageIdx : 0;
 
   // Rendu d'une plante à un stade donné
+  // La plante pousse depuis la surface de terre (cy + TH)
   const renderPlant = () => {
     if (!plant || !stage) return null;
     const emoji = stage.emoji;
     const scale = stage.scale;
     const opacity = stage.opacity;
-    const fontSize = 8 + scale * 8;
+    const fontSize = 6 + scale * 6;
     const plantInfo = PLANTS_SIMPLE.find(p => p.id === plant.plantId);
     const glowColor = glowColors[stageIdxSafe] || glowColors[0];
+
+    // Stade 0 (graine) = à mi-hauteur dans la terre
+    // Stade 1+ = pousse vers le haut depuis la surface
+    const isInDirt = stageIdxSafe === 0;
+    const dirtSurfaceY = cy + TH; // sommet de la face dirt (base du losange)
+    const plantBaseY = isInDirt ? dirtSurfaceY + TD * 0.4 : dirtSurfaceY;
+    const emojiY = isInDirt ? plantBaseY : plantBaseY - fontSize * 0.6;
+
     return (
       <>
-        {/* Halo de croissance */}
-        <ellipse cx={cx} cy={cy + hh + 2} rx={fontSize * 0.8} ry={fontSize * 0.4}
-          fill={glowColor} opacity={0.25 * opacity}/>
-        {/* Petite ombre */}
-        <ellipse cx={cx} cy={cy + hh + 6} rx={fontSize * 0.5} ry={fontSize * 0.2}
-          fill="rgba(0,0,0,0.3)"/>
-        {/* Texte emoji */}
+        {/* Ombre sur la surface dirt */}
+        <ellipse cx={cx} cy={dirtSurfaceY + 1} rx={fontSize * 0.6} ry={fontSize * 0.2}
+          fill="rgba(0,0,0,0.4)"/>
+        {/* Petite hale terre autour de la tige */}
+        {!isInDirt && (
+          <ellipse cx={cx} cy={dirtSurfaceY} rx={fontSize * 0.35} ry={fontSize * 0.15}
+            fill={glowColor} opacity={0.4}/>
+        )}
+        {/* Texte emoji - ancré dans/sur la terre */}
         <text
           x={cx}
-          y={cy + hh - 1}
+          y={emojiY}
           textAnchor="middle"
+          dominantBaseline="auto"
           fontSize={fontSize}
           opacity={opacity}
           style={{
             userSelect: "none",
-            filter: `drop-shadow(0 ${scale}px ${scale * 2}px rgba(0,0,0,0.5))`,
+            filter: `drop-shadow(0 1px 2px rgba(0,0,0,0.6))`,
           }}
         >
           {emoji}
         </text>
+        {/* Indicateur "dans la terre" - petit monticule */}
+        {isInDirt && (
+          <>
+            <ellipse cx={cx} cy={dirtSurfaceY} rx={fontSize * 0.5} ry={fontSize * 0.2}
+              fill="#8b5e3c" opacity={0.7}/>
+            <ellipse cx={cx} cy={dirtSurfaceY - 1} rx={fontSize * 0.35} ry={fontSize * 0.15}
+              fill={glowColor} opacity={0.6}/>
+          </>
+        )}
         {/* Indicateur barre de croissance (stade actuel) */}
-        {stageIdxSafe < 5 && (
+        {stageIdxSafe > 0 && stageIdxSafe < 5 && (
           <g>
-            <rect x={cx - 10} y={cy + TH - 5} width={20} height={3} rx={1}
+            <rect x={cx - 10} y={dirtSurfaceY + 2} width={20} height={3} rx={1}
               fill="rgba(0,0,0,0.4)" opacity={0.7}/>
-            <rect x={cx - 10} y={cy + TH - 5} width={20 * ((stageIdxSafe + 1) / 6)} height={3} rx={1}
+            <rect x={cx - 10} y={dirtSurfaceY + 2} width={20 * ((stageIdxSafe) / 6)} height={3} rx={1}
               fill={glowColor} opacity={0.9}/>
           </g>
         )}
         {/* Indicateur "PRÊTE" pour stade max */}
         {stageIdxSafe === 5 && (
           <>
-            <rect x={cx - 14} y={cy - 4} width={28} height={9} rx={2}
+            <rect x={cx - 14} y={dirtSurfaceY - 16} width={28} height={9} rx={2}
               fill="#e63946" opacity={0.9}/>
-            <text x={cx} y={cy + 3} textAnchor="middle" fontSize="6" fill="#fff"
+            <text x={cx} y={dirtSurfaceY - 9} textAnchor="middle" fontSize="6" fill="#fff"
               style={{ userSelect: "none" }}>PRÊTE!</text>
           </>
         )}
