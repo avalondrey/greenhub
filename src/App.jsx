@@ -104,6 +104,46 @@ const GROWTH_STAGES = [
   { name: 'prête', emoji: '🪴', scale: 1.4, opacity: 1.0 },
 ];
 
+// ─── TILESET IMAGE PATHS ──────────────────────────────────────────────────────
+// Mapping famille -> fichier tileset stade serre (versions carrées)
+const STAGE_TILESET_SERRE = {
+  'Solanacées': '/tileset/stades-serre/square/S02_solanacees.jpg',  // tomates, poivrons, aubergines
+  'Cucurbitacées': '/tileset/stades-serre/square/S03_courgettes_melon_mais.jpg',  // courgettes, melons, mais
+  'Fabacées': '/tileset/stades-serre/square/S04_haricots_poireau_oignon.jpg',  // haricots
+  'Alliacées': '/tileset/stades-serre/square/S04_haricots_poireau_oignon.jpg',  // ail, oignons, poireaux
+  'Apiacées': '/tileset/stades-serre/square/S04_haricots_poireau_oignon.jpg',  // carottes, persil
+  'Astéracées': '/tileset/stades-serre/square/S07_salades_chou.jpg',  // salades, choux
+  'Brassicacées': '/tileset/stades-serre/square/S07_salades_chou.jpg',  // choux, brocoli, radis
+  'Amaranthacées': '/tileset/stades-serre/square/S06_racines_feuilles1.jpg',  // épinards, betteraves
+  'Lamiacées': '/tileset/stades-serre/square/S09_herbes1.jpg',  // basilic, menthes, herbes
+  'Rosacées': '/tileset/stades-serre/square/S08_brocoli_fraises_basilic.jpg',  // fraisiers
+  'Poacées': '/tileset/stades-serre/square/S03_courgettes_melon_mais.jpg',  // mais
+  'Amaryllidacées': '/tileset/stades-serre/square/S05_ail_carottes_radis.jpg',  // aulx, échalotes
+  'Convolvulacées': '/tileset/stades-serre/square/S05_ail_carottes_radis.jpg',  // pommes de terre
+  'Chénopodiacées': '/tileset/stades-serre/square/S06_racines_feuilles1.jpg',  // betteraves, epinards
+};
+
+// Récupère le chemin de l'image tileset pour une plante (serre)
+function getPlantTilesetPath(plantId, stageIdx) {
+  const plant = PLANTS_DB.find(p => p.id === plantId);
+  if (!plant) return null;
+  const tilesetPath = STAGE_TILESET_SERRE[plant.family];
+  if (!tilesetPath) return null;
+  // Le fichier contient tous les stades dans une grille
+  // Pour l'instant on retourne le chemin complet - l'affichage dépendra du stage
+  return tilesetPath;
+}
+
+// Calcule la position dans le sprite sheet (6 stades = 2 lignes x 3 colonnes)
+// Stade 0-2 = ligne 1, Stade 3-5 = ligne 2
+function getStageSpritePos(stageIdx) {
+  const COLS = 3;
+  const stage = Math.min(Math.max(stageIdx, 0), 5);
+  const col = stage % COLS;
+  const row = Math.floor(stage / COLS);
+  return { col, row };
+}
+
 // ─── LIDL MINI-SERRE 3D PHOTO-RÉALISTE ─────────────────────────────────────
 // Rendu fidèle à la photo : dôme transparent cristallin, bac blanc, plantes visibles
 
@@ -667,6 +707,18 @@ function IsoTerrainBlock({ cx, cy, selected, isMoving, plant, stage, stageIdx, o
     const plantBaseY = isInDirt ? dirtSurfaceY + TD * 0.4 : dirtSurfaceY;
     const emojiY = isInDirt ? plantBaseY : plantBaseY - fontSize * 0.6;
 
+    // Récupérer l'image tileset pour cette plante (serre)
+    const tilesetPath = getPlantTilesetPath(plant.plantId, stageIdxSafe);
+    const spritePos = getStageSpritePos(stageIdxSafe);
+
+    // Taille de l'image tileset carrée (1344x1344, 3x2 stades = 448x672 par cellule)
+    const SPRITE_W = 448;
+    const SPRITE_H = 672;
+    const CELL_W = SPRITE_W / 3;
+    const CELL_H = SPRITE_H / 2;
+    const imgX = spritePos.col * CELL_W;
+    const imgY = spritePos.row * CELL_H;
+
     return (
       <>
         {/* Ombre sur la surface dirt */}
@@ -677,21 +729,41 @@ function IsoTerrainBlock({ cx, cy, selected, isMoving, plant, stage, stageIdx, o
           <ellipse cx={cx} cy={dirtSurfaceY} rx={fontSize * 0.35} ry={fontSize * 0.15}
             fill={glowColor} opacity={0.4}/>
         )}
-        {/* Texte emoji - ancré dans/sur la terre */}
-        <text
-          x={cx}
-          y={emojiY}
-          textAnchor="middle"
-          dominantBaseline="auto"
-          fontSize={fontSize}
-          opacity={opacity}
-          style={{
-            userSelect: "none",
-            filter: `drop-shadow(0 1px 2px rgba(0,0,0,0.6))`,
-          }}
-        >
-          {emoji}
-        </text>
+        {/* Tileset image - ancré dans/sur la terre */}
+        {tilesetPath ? (
+          // Image tileset (sprite sheet avec 6 stades en grille 3x2)
+          <image
+            href={tilesetPath}
+            x={imgX}
+            y={imgY}
+            width={CELL_W}
+            height={CELL_H}
+            opacity={opacity}
+            style={{
+              transform: `translate(${cx - CELL_W / 2}px, ${emojiY - CELL_H * 0.7}px) scale(${fontSize / CELL_W * 1.2})`,
+              transformOrigin: `${cx}px ${dirtSurfaceY}px`,
+              imageRendering: 'pixelated',
+              userSelect: 'none',
+              filter: 'drop-shadow(0 1px 2px rgba(0,0,0,0.6))',
+            }}
+          />
+        ) : (
+          // Fallback emoji si pas de tileset
+          <text
+            x={cx}
+            y={emojiY}
+            textAnchor="middle"
+            dominantBaseline="auto"
+            fontSize={fontSize}
+            opacity={opacity}
+            style={{
+              userSelect: "none",
+              filter: `drop-shadow(0 1px 2px rgba(0,0,0,0.6))`,
+            }}
+          >
+            {emoji}
+          </text>
+        )}
         {/* Indicateur "dans la terre" - petit monticule */}
         {isInDirt && (
           <>
@@ -816,21 +888,42 @@ function IsometricMiniSerre({ serre, selectedIdx, movingIdx, onCellClick }) {
   const ox = -minX + padX;
   const oy = -minY + padTop;
 
-  // Coins pour poteaux
-  const corners = [
-    isoXY(-0.5, -0.5),
-    isoXY(ISO_COLS - 0.5, -0.5),
-    isoXY(-0.5, ISO_ROWS - 0.5),
-    isoXY(ISO_COLS - 0.5, ISO_ROWS - 0.5),
+  // Coins pour poteaux (coin bas de chaque coin)
+  const cornerPosts = [
+    isoXY(-0.5, -0.5),      // haut-gauche
+    isoXY(ISO_COLS - 0.5, -0.5),  // haut-droit
+    isoXY(-0.5, ISO_ROWS - 0.5),  // bas-gauche
+    isoXY(ISO_COLS - 0.5, ISO_ROWS - 0.5), // bas-droit
   ];
 
-  // Coins serre pour le dôme
-  const tl = isoXY(-0.5, -0.5);
-  const tr = isoXY(ISO_COLS-0.5, -0.5);
-  const bl = isoXY(-0.5, ISO_ROWS-0.5);
-  const br = isoXY(ISO_COLS-0.5, ISO_ROWS-0.5);
-  const domeY = -38;
-  const domeH = 52;
+  // Coins serre pour le dôme (coin supérieur = y minimum)
+  const domeY = -38; // hauteur du dôme par rapport au sol
+  const domeH = 52; // hauteur totale du dôme
+  const domeTop = domeY - domeH;
+
+  // Cadre du dôme (trapèze isométrique vu du dessus)
+  const domeLeftTop = isoXY(-0.5, -0.5);
+  const domeRightTop = isoXY(ISO_COLS - 0.5, -0.5);
+  const domeLeftBot = isoXY(-0.5, ISO_ROWS - 0.5);
+  const domeRightBot = isoXY(ISO_COLS - 0.5, ISO_ROWS - 0.5);
+
+  // Points du dôme en 3D (fictifs pour effet trapèze)
+  const domePts = {
+    // Base du dôme (cadre)
+    tl: isoXY(-0.5, -0.5),
+    tr: isoXY(ISO_COLS - 0.5, -0.5),
+    bl: isoXY(-0.5, ISO_ROWS - 0.5),
+    br: isoXY(ISO_COLS - 0.5, ISO_ROWS - 0.5),
+  };
+
+  // Calculer les 4 coins "en hauteur" du dôme (point culminant)
+  const domeCornerY = domeY - domeH; // y du sommet du dôme
+  const domeMidY = domeY - domeH * 0.6; // y du milieu
+
+  // Verre du dôme - gradient
+  const GLASS_COLOR = 'rgba(180, 230, 200, 0.25)';
+  const GLASS_EDGE = 'rgba(100, 180, 120, 0.5)';
+  const FRAME_COLOR = 'rgba(255, 255, 255, 0.85)';
 
   return (
     <svg width={svgW} height={svgH} viewBox={`0 0 ${svgW} ${svgH}`}
@@ -853,6 +946,123 @@ function IsometricMiniSerre({ serre, selectedIdx, movingIdx, onCellClick }) {
         fill="rgba(0,0,0,0.12)"/>
 
       <g transform={`translate(${ox},${oy})`}>
+
+        {/* ── DÔME EN VERRE (arrière) ── */}
+        {/* Face arrière du dôme (parte du fond) */}
+        <path
+          d={`M ${domePts.tl.x + TW/2} ${domePts.tl.y + domeTop}
+              L ${domePts.tr.x + TW/2} ${domePts.tr.y + domeTop}
+              L ${domePts.br.x + TW/2} ${domePts.br.y + domeY}
+              L ${domePts.bl.x + TW/2} ${domePts.bl.y + domeY} Z`}
+          fill={GLASS_COLOR}
+          stroke={GLASS_EDGE}
+          strokeWidth="1"
+          opacity="0.5"
+        />
+
+        {/* ── POTEAUX DE LA SERRE ── */}
+        {cornerPosts.map((pos, i) => (
+          <g key={`post-${i}`}>
+            {/* Poteau vertical */}
+            <rect
+              x={pos.x + TW/2 - 5}
+              y={domeTop}
+              width={10}
+              height={Math.abs(domeY - domeTop) + 5}
+              fill="url(#isoPlankPat)"
+              opacity="0.9"
+            />
+            <rect
+              x={pos.x + TW/2 - 5}
+              y={domeTop}
+              width={10}
+              height={Math.abs(domeY - domeTop) + 5}
+              fill="none"
+              stroke="rgba(90,48,16,0.6)"
+              strokeWidth="1"
+            />
+          </g>
+        ))}
+
+        {/* ── BARRE横向 DU DÔME ── */}
+        {/* Barre horizontale supérieure */}
+        <line
+          x1={domePts.tl.x + TW/2}
+          y1={domeTop + 2}
+          x2={domePts.tr.x + TW/2}
+          y2={domeTop + 2}
+          stroke={FRAME_COLOR}
+          strokeWidth="2"
+          opacity="0.8"
+        />
+        {/* Barre diagonale */}
+        <line
+          x1={domePts.tl.x + TW/2}
+          y1={domeTop + 2}
+          x2={domePts.tr.x + TW/2}
+          y2={domeTop + 2}
+          stroke={FRAME_COLOR}
+          strokeWidth="1.5"
+          opacity="0.6"
+        />
+
+        {/* ── VERRES LATÉRAUX DU DÔME ── */}
+        {/* Face gauche du dôme (transparente) */}
+        <polygon
+          points={`${domePts.tl.x + TW/2},${domeTop}
+                   ${domePts.bl.x + TW/2},${domeY + 5}
+                   ${domePts.bl.x + TW/2},${domeY}
+                   ${domePts.tl.x + TW/2},${domeTop + domeH * 0.3}`}
+          fill={GLASS_COLOR}
+          stroke={GLASS_EDGE}
+          strokeWidth="1"
+          opacity="0.4"
+        />
+        {/* Face droite du dôme */}
+        <polygon
+          points={`${domePts.tr.x + TW/2},${domeTop}
+                   ${domePts.br.x + TW/2},${domeY + 5}
+                   ${domePts.br.x + TW/2},${domeY}
+                   ${domePts.tr.x + TW/2},${domeTop + domeH * 0.3}`}
+          fill={GLASS_COLOR}
+          stroke={GLASS_EDGE}
+          strokeWidth="1"
+          opacity="0.35"
+        />
+
+        {/* ── FACE AVANT DU DÔME (la plus visible) ── */}
+        {/* Surface vitrée avant */}
+        <polygon
+          points={`${domePts.tl.x + TW/2},${domeTop + domeH * 0.3}
+                   ${domePts.tr.x + TW/2},${domeTop + domeH * 0.3}
+                   ${domePts.br.x + TW/2},${domeY}
+                   ${domePts.bl.x + TW/2},${domeY}`}
+          fill={GLASS_COLOR}
+          stroke={GLASS_EDGE}
+          strokeWidth="1.5"
+          opacity="0.5"
+        />
+        {/* Effet de reflet sur le verre */}
+        <polygon
+          points={`${domePts.tl.x + TW/2 + 10},${domeTop + domeH * 0.35}
+                   ${domePts.tr.x + TW/2 - 20},${domeTop + domeH * 0.35}
+                   ${domePts.br.x + TW/2 - 15},${domeY + 8}
+                   ${domePts.bl.x + TW/2 + 5},${domeY + 8}`}
+          fill="rgba(255,255,255,0.15)"
+          stroke="none"
+        />
+
+        {/* ── TOIT / DÔME (vue du dessus en perspective) ── */}
+        {/* Triangle du toit */}
+        <polygon
+          points={`${domePts.tl.x + TW/2},${domeTop}
+                   ${domePts.tr.x + TW/2},${domeTop}
+                   ${(domePts.tl.x + domePts.tr.x) / 2 + TW/2},${domeTop + domeH * 0.5}`}
+          fill="rgba(220,245,225,0.3)"
+          stroke={FRAME_COLOR}
+          strokeWidth="1.5"
+          opacity="0.6"
+        />
 
         {/* Tuiles isométriques back-to-front */}
         {Array.from({length: ISO_ROWS}, (_,r) =>
