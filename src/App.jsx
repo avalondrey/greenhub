@@ -1,5 +1,6 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { PLANTS_DB, PLANTS_SIMPLE, generateTasks, estimateYield } from './db/plants.js';
+import useTileRenderer from './hooks/useTileRenderer.js';
 
 // ─── GARDEN OBJECTS DATABASE ──────────────────────────────────────────────────
 // Objets du jardin réel : arbres, haies, arbustes, petits fruits, cabanons, serres
@@ -95,54 +96,74 @@ const S = {
   primaryBtn: { display: 'block', width: '100%', textAlign: 'center', padding: '12px 0', borderRadius: 12, cursor: 'pointer', fontSize: 14, fontWeight: 700, border: 'none', boxSizing: 'border-box', transition: 'opacity 0.2s' },
 };
 
+// ── GROWTH STAGES (6 stades pour le rendu SVG/emoji fallback) ──
 const GROWTH_STAGES = [
-  { name: 'graine', emoji: '🟤', scale: 0.4, opacity: 0.6 },
+  { name: 'graine',      emoji: '🟤', scale: 0.4, opacity: 0.6 },
   { name: 'germination', emoji: '🌱', scale: 0.6, opacity: 0.8 },
-  { name: 'levée', emoji: '🌿', scale: 0.8, opacity: 0.9 },
-  { name: 'petite', emoji: '🌿', scale: 1.0, opacity: 1.0 },
-  { name: 'moyenne', emoji: '🪴', scale: 1.2, opacity: 1.0 },
-  { name: 'prête', emoji: '🪴', scale: 1.4, opacity: 1.0 },
+  { name: 'levée',       emoji: '🌿', scale: 0.8, opacity: 0.9 },
+  { name: 'petite',      emoji: '🌿', scale: 1.0, opacity: 1.0 },
+  { name: 'moyenne',     emoji: '🪴', scale: 1.2, opacity: 1.0 },
+  { name: 'prête',       emoji: '🪴', scale: 1.4, opacity: 1.0 },
 ];
 
-// ─── TILESET IMAGE PATHS ──────────────────────────────────────────────────────
-// Mapping famille -> fichier tileset stade serre (versions carrées)
-const STAGE_TILESET_SERRE = {
-  'Solanacées': '/tileset/stades-serre/square/S02_solanacees.jpg',  // tomates, poivrons, aubergines
-  'Cucurbitacées': '/tileset/stades-serre/square/S03_courgettes_melon_mais.jpg',  // courgettes, melons, mais
-  'Fabacées': '/tileset/stades-serre/square/S04_haricots_poireau_oignon.jpg',  // haricots
-  'Alliacées': '/tileset/stades-serre/square/S04_haricots_poireau_oignon.jpg',  // ail, oignons, poireaux
-  'Apiacées': '/tileset/stades-serre/square/S04_haricots_poireau_oignon.jpg',  // carottes, persil
-  'Astéracées': '/tileset/stades-serre/square/S07_salades_chou.jpg',  // salades, choux
-  'Brassicacées': '/tileset/stades-serre/square/S07_salades_chou.jpg',  // choux, brocoli, radis
-  'Amaranthacées': '/tileset/stades-serre/square/S06_racines_feuilles1.jpg',  // épinards, betteraves
-  'Lamiacées': '/tileset/stades-serre/square/S09_herbes1.jpg',  // basilic, menthes, herbes
-  'Rosacées': '/tileset/stades-serre/square/S08_brocoli_fraises_basilic.jpg',  // fraisiers
-  'Poacées': '/tileset/stades-serre/square/S03_courgettes_melon_mais.jpg',  // mais
-  'Amaryllidacées': '/tileset/stades-serre/square/S05_ail_carottes_radis.jpg',  // aulx, échalotes
-  'Convolvulacées': '/tileset/stades-serre/square/S05_ail_carottes_radis.jpg',  // pommes de terre
-  'Chénopodiacées': '/tileset/stades-serre/square/S06_racines_feuilles1.jpg',  // betteraves, epinards
+// ── TILESET STAGES (5 stades = colonnes du tileset) ──
+// Utilisé par le moteur de fusion quand le tileset est disponible
+const TILESET_GROWTH = [
+  { name: 'graine',      emoji: '🟤', scale: 0.4, opacity: 0.6 },
+  { name: 'germination', emoji: '🌱', scale: 0.55, opacity: 0.8 },
+  { name: 'levée',       emoji: '🌿', scale: 0.75, opacity: 0.9 },
+  { name: 'croissance',  emoji: '🌿', scale: 0.95, opacity: 1.0 },
+  { name: 'prête',       emoji: '🪴', scale: 1.15, opacity: 1.0 },
+];
+
+// Map each plantId to its tileset image file and row index (0-based)
+// PLANT_STAGE_TILESET_MAP conservé pour les autres plantes (utilisé hors serre)
+const PLANT_STAGE_TILESET_MAP = {
+  'tomate-noire-de-crimee': { file: 'S02_solanacees.jpg', row: 0 },
+  'poivron-ogea': { file: 'S02_solanacees.jpg', row: 1 },
+  'aubergine-beaute': { file: 'S02_solanacees.jpg', row: 2 },
+  'concombre-libanais': { file: 'S02_solanacees.jpg', row: 3 },
+  'courgette-noire': { file: 'S03_courgettes_melon_mais.jpg', row: 0 },
+  'courgette-jaune': { file: 'S03_courgettes_melon_mais.jpg', row: 1 },
+  'melon-cantaloup': { file: 'S03_courgettes_melon_mais.jpg', row: 2 },
+  'mais-doux': { file: 'S03_courgettes_melon_mais.jpg', row: 3 },
+  'haricot-vert': { file: 'S04_haricots_poireau_oignon.jpg', row: 0 },
+  'haricot-beurre': { file: 'S04_haricots_poireau_oignon.jpg', row: 1 },
+  'poireau-bleu': { file: 'S04_haricots_poireau_oignon.jpg', row: 2 },
+  'oignon-jaune': { file: 'S04_haricots_poireau_oignon.jpg', row: 3 },
+  'ail-rose': { file: 'S05_ail_carottes_radis.jpg', row: 0 },
+  'carotte-nantaise': { file: 'S05_ail_carottes_radis.jpg', row: 1 },
+  'carotte-colorée': { file: 'S05_ail_carottes_radis.jpg', row: 2 },
+  'radis-cherry-belle': { file: 'S05_ail_carottes_radis.jpg', row: 3 },
+  'betterave-ronde': { file: 'S06_racines_feuilles1.jpg', row: 0 },
+  'patate-douce': { file: 'S06_racines_feuilles1.jpg', row: 1 },
+  'celeri-branche': { file: 'S06_racines_feuilles1.jpg', row: 2 },
+  'epinard-monstrueux': { file: 'S06_racines_feuilles1.jpg', row: 3 },
+  'laitue-batavia': { file: 'S07_salades_chou.jpg', row: 0 },
+  'laitue-romaine': { file: 'S07_salades_chou.jpg', row: 1 },
+  'mesclun': { file: 'S07_salades_chou.jpg', row: 2 },
+  'chou-bleu': { file: 'S07_salades_chou.jpg', row: 3 },
+  'brocoli': { file: 'S08_brocoli_fraises_basilic.jpg', row: 0 },
+  'fraise-gariguette': { file: 'S08_brocoli_fraises_basilic.jpg', row: 1 },
+  'fraise-mara-des-bois': { file: 'S08_brocoli_fraises_basilic.jpg', row: 2 },
+  'basilic-grand-vert': { file: 'S08_brocoli_fraises_basilic.jpg', row: 3 },
+  'basilic-thaï': { file: 'S09_herbes1.jpg', row: 0 },
+  'persilCommun': { file: 'S09_herbes1.jpg', row: 1 },
+  'ciboulette': { file: 'S09_herbes1.jpg', row: 2 },
+  'menthe': { file: 'S09_herbes1.jpg', row: 3 },
+  'thym': { file: 'S10_herbes2.jpg', row: 0 },
+  'romarin': { file: 'S10_herbes2.jpg', row: 1 },
+  'origan': { file: 'S10_herbes2.jpg', row: 2 },
 };
 
-// Récupère le chemin de l'image tileset pour une plante (serre)
-function getPlantTilesetPath(plantId, stageIdx) {
-  const plant = PLANTS_DB.find(p => p.id === plantId);
-  if (!plant) return null;
-  const tilesetPath = STAGE_TILESET_SERRE[plant.family];
-  if (!tilesetPath) return null;
-  // Le fichier contient tous les stades dans une grille
-  // Pour l'instant on retourne le chemin complet - l'affichage dépendra du stage
-  return tilesetPath;
-}
-
-// Calcule la position dans le sprite sheet (6 stades = 2 lignes x 3 colonnes)
-// Stade 0-2 = ligne 1, Stade 3-5 = ligne 2
-function getStageSpritePos(stageIdx) {
-  const COLS = 3;
-  const stage = Math.min(Math.max(stageIdx, 0), 5);
-  const col = stage % COLS;
-  const row = Math.floor(stage / COLS);
-  return { col, row };
-}
+const TILESET_BASE = '/tileset/stades-serre/';
+const TILESET_IMG_W = 1344;
+const TILESET_IMG_H = 768;
+const TILESET_TITLE_H = 45;
+const TILESET_ROWS = 4;
+const TILESET_STAGES = 5;
+const TILESET_ROW_H = (TILESET_IMG_H - TILESET_TITLE_H) / TILESET_ROWS;
+const TILESET_STAGE_W = TILESET_IMG_W / TILESET_STAGES;
 
 // ─── LIDL MINI-SERRE 3D PHOTO-RÉALISTE ─────────────────────────────────────
 // Rendu fidèle à la photo : dôme transparent cristallin, bac blanc, plantes visibles
@@ -643,6 +664,7 @@ function IsoDefs() {
 }
 
 // ── BLOC TERRAIN ISOMÉTRIQUE ─────────────────────────────────────────────────
+// Supporte tileCutterData: tuiles Canvas pré-découpées depuis le TileSet
 function IsoTerrainBlock({ cx, cy, selected, isMoving, plant, stage, stageIdx, onClick }) {
   const hw = TW / 2;
   const hh = TH / 2;
@@ -689,106 +711,92 @@ function IsoTerrainBlock({ cx, cy, selected, isMoving, plant, stage, stageIdx, o
 
   const stageIdxSafe = stageIdx !== null && stageIdx !== undefined ? stageIdx : 0;
 
-  // Rendu d'une plante à un stade donné
-  // La plante pousse depuis la surface de terre (cy + TH)
+  // Rendu d'une plante à un stade donné (fallback pour plantes sans tileset)
   const renderPlant = () => {
     if (!plant || !stage) return null;
-    const emoji = stage.emoji;
+    const plantId = plant.plantId;
     const scale = stage.scale;
     const opacity = stage.opacity;
     const fontSize = 6 + scale * 6;
-    const plantInfo = PLANTS_SIMPLE.find(p => p.id === plant.plantId);
     const glowColor = glowColors[stageIdxSafe] || glowColors[0];
-
-    // Stade 0 (graine) = à mi-hauteur dans la terre
-    // Stade 1+ = pousse vers le haut depuis la surface
     const isInDirt = stageIdxSafe === 0;
-    const dirtSurfaceY = cy + TH; // sommet de la face dirt (base du losange)
+    const dirtSurfaceY = cy + TH;
     const plantBaseY = isInDirt ? dirtSurfaceY + TD * 0.4 : dirtSurfaceY;
+
+    // ── PRIORITÉ 2: SVG crop pour autres plantes ─────────────────────
+    const tileInfo = PLANT_STAGE_TILESET_MAP[plantId];
+    if (tileInfo) {
+      const imgW = 50 + scale * 12;
+      const imgH = imgW * 0.55;
+      const emojiY = isInDirt ? plantBaseY - imgH * 0.3 : plantBaseY - imgH - 2;
+      const srcX = stageIdxSafe * TILESET_STAGE_W + 15;
+      const srcY = TILESET_TITLE_H + tileInfo.row * TILESET_ROW_H + 8;
+      const srcW = TILESET_STAGE_W - 30;
+      const srcH = TILESET_ROW_H - 16;
+      return (
+        <>
+          <ellipse cx={cx} cy={dirtSurfaceY + 1} rx={imgW * 0.35} ry={imgW * 0.08} fill="rgba(0,0,0,0.35)"/>
+          {!isInDirt && (
+            <ellipse cx={cx} cy={dirtSurfaceY} rx={imgW * 0.2} ry={imgW * 0.06} fill={glowColor} opacity={0.4}/>
+          )}
+          <image
+            href={`${TILESET_BASE}${tileInfo.file}`}
+            x={cx - imgW / 2}
+            y={emojiY}
+            width={imgW}
+            height={imgH}
+            hrefX={srcX}
+            hrefY={srcY}
+            hrefWidth={srcW}
+            hrefHeight={srcH}
+            opacity={opacity}
+            preserveAspectRatio="xMidYMid meet"
+            style={{ filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.5))', imageRendering: 'pixelated' }}
+          />
+          {isInDirt && (
+            <ellipse cx={cx} cy={dirtSurfaceY} rx={imgW * 0.3} ry={imgW * 0.1} fill="#8b5e3c" opacity={0.7}/>
+          )}
+          {stageIdxSafe > 0 && stageIdxSafe < 5 && (
+            <g>
+              <rect x={cx - 10} y={dirtSurfaceY + 2} width={20} height={3} rx={1} fill="rgba(0,0,0,0.4)" opacity={0.7}/>
+              <rect x={cx - 10} y={dirtSurfaceY + 2} width={20 * (stageIdxSafe / 6)} height={3} rx={1} fill={glowColor} opacity={0.9}/>
+            </g>
+          )}
+          {stageIdxSafe === 5 && (
+            <>
+              <rect x={cx - 14} y={emojiY - 4} width={28} height={9} rx={2} fill="#e63946" opacity={0.9}/>
+              <text x={cx} y={emojiY + 3} textAnchor="middle" fontSize="6" fill="#fff" style={{ userSelect: "none" }}>PRÊTE!</text>
+            </>
+          )}
+        </>
+      );
+    }
+
+    // ── FALLBACK: emoji pour plantes sans tileset ────────────────────
     const emojiY = isInDirt ? plantBaseY : plantBaseY - fontSize * 0.6;
-
-    // Récupérer l'image tileset pour cette plante (serre)
-    const tilesetPath = getPlantTilesetPath(plant.plantId, stageIdxSafe);
-    const spritePos = getStageSpritePos(stageIdxSafe);
-
-    // Taille de l'image tileset carrée (1344x1344, 3x2 stades = 448x672 par cellule)
-    const SPRITE_W = 448;
-    const SPRITE_H = 672;
-    const CELL_W = SPRITE_W / 3;
-    const CELL_H = SPRITE_H / 2;
-    const imgX = spritePos.col * CELL_W;
-    const imgY = spritePos.row * CELL_H;
-
     return (
       <>
-        {/* Ombre sur la surface dirt */}
-        <ellipse cx={cx} cy={dirtSurfaceY + 1} rx={fontSize * 0.6} ry={fontSize * 0.2}
-          fill="rgba(0,0,0,0.4)"/>
-        {/* Petite hale terre autour de la tige */}
-        {!isInDirt && (
-          <ellipse cx={cx} cy={dirtSurfaceY} rx={fontSize * 0.35} ry={fontSize * 0.15}
-            fill={glowColor} opacity={0.4}/>
-        )}
-        {/* Tileset image - ancré dans/sur la terre */}
-        {tilesetPath ? (
-          // Image tileset (sprite sheet avec 6 stades en grille 3x2)
-          <image
-            href={tilesetPath}
-            x={imgX}
-            y={imgY}
-            width={CELL_W}
-            height={CELL_H}
-            opacity={opacity}
-            style={{
-              transform: `translate(${cx - CELL_W / 2}px, ${emojiY - CELL_H * 0.7}px) scale(${fontSize / CELL_W * 1.2})`,
-              transformOrigin: `${cx}px ${dirtSurfaceY}px`,
-              imageRendering: 'pixelated',
-              userSelect: 'none',
-              filter: 'drop-shadow(0 1px 2px rgba(0,0,0,0.6))',
-            }}
-          />
-        ) : (
-          // Fallback emoji si pas de tileset
-          <text
-            x={cx}
-            y={emojiY}
-            textAnchor="middle"
-            dominantBaseline="auto"
-            fontSize={fontSize}
-            opacity={opacity}
-            style={{
-              userSelect: "none",
-              filter: `drop-shadow(0 1px 2px rgba(0,0,0,0.6))`,
-            }}
-          >
-            {emoji}
-          </text>
-        )}
-        {/* Indicateur "dans la terre" - petit monticule */}
+        <ellipse cx={cx} cy={dirtSurfaceY + 1} rx={fontSize * 0.6} ry={fontSize * 0.2} fill="rgba(0,0,0,0.4)"/>
+        <text x={cx} y={emojiY} textAnchor="middle" fontSize={fontSize} opacity={opacity}
+          style={{ userSelect: "none", filter: "drop-shadow(0 1px 2px rgba(0,0,0,0.6))" }}>
+          {stage.emoji}
+        </text>
         {isInDirt && (
           <>
-            <ellipse cx={cx} cy={dirtSurfaceY} rx={fontSize * 0.5} ry={fontSize * 0.2}
-              fill="#8b5e3c" opacity={0.7}/>
-            <ellipse cx={cx} cy={dirtSurfaceY - 1} rx={fontSize * 0.35} ry={fontSize * 0.15}
-              fill={glowColor} opacity={0.6}/>
+            <ellipse cx={cx} cy={dirtSurfaceY} rx={fontSize * 0.5} ry={fontSize * 0.2} fill="#8b5e3c" opacity={0.7}/>
+            <ellipse cx={cx} cy={dirtSurfaceY - 1} rx={fontSize * 0.35} ry={fontSize * 0.15} fill={glowColor} opacity={0.6}/>
           </>
         )}
-        {/* Indicateur barre de croissance (stade actuel) */}
         {stageIdxSafe > 0 && stageIdxSafe < 5 && (
           <g>
-            <rect x={cx - 10} y={dirtSurfaceY + 2} width={20} height={3} rx={1}
-              fill="rgba(0,0,0,0.4)" opacity={0.7}/>
-            <rect x={cx - 10} y={dirtSurfaceY + 2} width={20 * ((stageIdxSafe) / 6)} height={3} rx={1}
-              fill={glowColor} opacity={0.9}/>
+            <rect x={cx - 10} y={dirtSurfaceY + 2} width={20} height={3} rx={1} fill="rgba(0,0,0,0.4)" opacity={0.7}/>
+            <rect x={cx - 10} y={dirtSurfaceY + 2} width={20 * (stageIdxSafe / 6)} height={3} rx={1} fill={glowColor} opacity={0.9}/>
           </g>
         )}
-        {/* Indicateur "PRÊTE" pour stade max */}
         {stageIdxSafe === 5 && (
           <>
-            <rect x={cx - 14} y={dirtSurfaceY - 16} width={28} height={9} rx={2}
-              fill="#e63946" opacity={0.9}/>
-            <text x={cx} y={dirtSurfaceY - 9} textAnchor="middle" fontSize="6" fill="#fff"
-              style={{ userSelect: "none" }}>PRÊTE!</text>
+            <rect x={cx - 14} y={emojiY - 4} width={28} height={9} rx={2} fill="#e63946" opacity={0.9}/>
+            <text x={cx} y={emojiY + 3} textAnchor="middle" fontSize="6" fill="#fff" style={{ userSelect: "none" }}>PRÊTE!</text>
           </>
         )}
       </>
@@ -870,226 +878,38 @@ function IsoWoodPost({ cx, cy }) {
   );
 }
 
-// ── MINI-SERRE ISOMÉTRIQUE COMPLÈTE ──────────────────────────────────────────
+// ── MINI-SERRE ISOMÉTRIQUE COMPLÈTE — Canvas 2D Engine ──────────────────
+// Moteur de rendu Canvas 2D pixel-perfect.
+// Tous les sprites tileset sont dessinés via Canvas (pas de SVG).
+// Cliques → détection par inversion coordonnées iso.
 function IsometricMiniSerre({ serre, selectedIdx, movingIdx, onCellClick }) {
-  const allPos = [];
-  for (let r = 0; r < ISO_ROWS; r++)
-    for (let c = 0; c < ISO_COLS; c++)
-      allPos.push(isoXY(c, r));
+  const tick = useRealtimeGrowth();
+  const { canvasRef, render, ready, getClickedCell } = useTileRenderer();
 
-  const minX = Math.min(...allPos.map(p => p.x)) - TW/2;
-  const maxX = Math.max(...allPos.map(p => p.x)) + TW/2;
-  const minY = Math.min(...allPos.map(p => p.y));
-  const maxY = Math.max(...allPos.map(p => p.y)) + TH + TD;
+  // Re-rend le canvas quand l'état change
+  useEffect(() => {
+    if (ready && canvasRef.current) {
+      render(canvasRef.current, serre, selectedIdx, movingIdx);
+    }
+  }, [ready, serre, selectedIdx, movingIdx, tick, render]);
 
-  const padX = 50, padTop = 90, padBot = 40;
-  const svgW = maxX - minX + padX * 2;
-  const svgH = maxY - minY + padTop + padBot;
-  const ox = -minX + padX;
-  const oy = -minY + padTop;
-
-  // Coins pour poteaux (coin bas de chaque coin)
-  const cornerPosts = [
-    isoXY(-0.5, -0.5),      // haut-gauche
-    isoXY(ISO_COLS - 0.5, -0.5),  // haut-droit
-    isoXY(-0.5, ISO_ROWS - 0.5),  // bas-gauche
-    isoXY(ISO_COLS - 0.5, ISO_ROWS - 0.5), // bas-droit
-  ];
-
-  // Coins serre pour le dôme (coin supérieur = y minimum)
-  const domeY = -38; // hauteur du dôme par rapport au sol
-  const domeH = 52; // hauteur totale du dôme
-  const domeTop = domeY - domeH;
-
-  // Cadre du dôme (trapèze isométrique vu du dessus)
-  const domeLeftTop = isoXY(-0.5, -0.5);
-  const domeRightTop = isoXY(ISO_COLS - 0.5, -0.5);
-  const domeLeftBot = isoXY(-0.5, ISO_ROWS - 0.5);
-  const domeRightBot = isoXY(ISO_COLS - 0.5, ISO_ROWS - 0.5);
-
-  // Points du dôme en 3D (fictifs pour effet trapèze)
-  const domePts = {
-    // Base du dôme (cadre)
-    tl: isoXY(-0.5, -0.5),
-    tr: isoXY(ISO_COLS - 0.5, -0.5),
-    bl: isoXY(-0.5, ISO_ROWS - 0.5),
-    br: isoXY(ISO_COLS - 0.5, ISO_ROWS - 0.5),
-  };
-
-  // Calculer les 4 coins "en hauteur" du dôme (point culminant)
-  const domeCornerY = domeY - domeH; // y du sommet du dôme
-  const domeMidY = domeY - domeH * 0.6; // y du milieu
-
-  // Verre du dôme - gradient
-  const GLASS_COLOR = 'rgba(180, 230, 200, 0.25)';
-  const GLASS_EDGE = 'rgba(100, 180, 120, 0.5)';
-  const FRAME_COLOR = 'rgba(255, 255, 255, 0.85)';
+  const handleClick = useCallback((e) => {
+    const idx = getClickedCell(e.clientX, e.clientY);
+    if (idx !== null) onCellClick(idx);
+  }, [getClickedCell, onCellClick]);
 
   return (
-    <svg width={svgW} height={svgH} viewBox={`0 0 ${svgW} ${svgH}`}
-      style={{ display:"block", margin:"0 auto", imageRendering:"pixelated", maxWidth:"100%" }}>
-      <IsoDefs />
-
-      {/* Fond ciel */}
-      <rect width={svgW} height={svgH} fill="url(#isoSkyGrad)"/>
-
-      {/* Nuages pixel */}
-      {[[60,18,28,10],[180,28,20,8],[300,12,24,9],[380,22,16,7]].map(([x,y,w,h],i)=>(
-        <g key={i} opacity={0.45}>
-          <rect x={x} y={y} width={w} height={h} rx={4} fill="#fff"/>
-          <rect x={x+4} y={y-4} width={w-8} height={h} rx={3} fill="#fff"/>
-        </g>
-      ))}
-
-      {/* Ombre sol */}
-      <ellipse cx={svgW/2} cy={svgH - 18} rx={svgW*0.36} ry={10}
-        fill="rgba(0,0,0,0.12)"/>
-
-      <g transform={`translate(${ox},${oy})`}>
-
-        {/* ── DÔME EN VERRE (arrière) ── */}
-        {/* Face arrière du dôme (parte du fond) */}
-        <path
-          d={`M ${domePts.tl.x + TW/2} ${domePts.tl.y + domeTop}
-              L ${domePts.tr.x + TW/2} ${domePts.tr.y + domeTop}
-              L ${domePts.br.x + TW/2} ${domePts.br.y + domeY}
-              L ${domePts.bl.x + TW/2} ${domePts.bl.y + domeY} Z`}
-          fill={GLASS_COLOR}
-          stroke={GLASS_EDGE}
-          strokeWidth="1"
-          opacity="0.5"
-        />
-
-        {/* ── POTEAUX DE LA SERRE ── */}
-        {cornerPosts.map((pos, i) => (
-          <g key={`post-${i}`}>
-            {/* Poteau vertical */}
-            <rect
-              x={pos.x + TW/2 - 5}
-              y={domeTop}
-              width={10}
-              height={Math.abs(domeY - domeTop) + 5}
-              fill="url(#isoPlankPat)"
-              opacity="0.9"
-            />
-            <rect
-              x={pos.x + TW/2 - 5}
-              y={domeTop}
-              width={10}
-              height={Math.abs(domeY - domeTop) + 5}
-              fill="none"
-              stroke="rgba(90,48,16,0.6)"
-              strokeWidth="1"
-            />
-          </g>
-        ))}
-
-        {/* ── BARRE横向 DU DÔME ── */}
-        {/* Barre horizontale supérieure */}
-        <line
-          x1={domePts.tl.x + TW/2}
-          y1={domeTop + 2}
-          x2={domePts.tr.x + TW/2}
-          y2={domeTop + 2}
-          stroke={FRAME_COLOR}
-          strokeWidth="2"
-          opacity="0.8"
-        />
-        {/* Barre diagonale */}
-        <line
-          x1={domePts.tl.x + TW/2}
-          y1={domeTop + 2}
-          x2={domePts.tr.x + TW/2}
-          y2={domeTop + 2}
-          stroke={FRAME_COLOR}
-          strokeWidth="1.5"
-          opacity="0.6"
-        />
-
-        {/* ── VERRES LATÉRAUX DU DÔME ── */}
-        {/* Face gauche du dôme (transparente) */}
-        <polygon
-          points={`${domePts.tl.x + TW/2},${domeTop}
-                   ${domePts.bl.x + TW/2},${domeY + 5}
-                   ${domePts.bl.x + TW/2},${domeY}
-                   ${domePts.tl.x + TW/2},${domeTop + domeH * 0.3}`}
-          fill={GLASS_COLOR}
-          stroke={GLASS_EDGE}
-          strokeWidth="1"
-          opacity="0.4"
-        />
-        {/* Face droite du dôme */}
-        <polygon
-          points={`${domePts.tr.x + TW/2},${domeTop}
-                   ${domePts.br.x + TW/2},${domeY + 5}
-                   ${domePts.br.x + TW/2},${domeY}
-                   ${domePts.tr.x + TW/2},${domeTop + domeH * 0.3}`}
-          fill={GLASS_COLOR}
-          stroke={GLASS_EDGE}
-          strokeWidth="1"
-          opacity="0.35"
-        />
-
-        {/* ── FACE AVANT DU DÔME (la plus visible) ── */}
-        {/* Surface vitrée avant */}
-        <polygon
-          points={`${domePts.tl.x + TW/2},${domeTop + domeH * 0.3}
-                   ${domePts.tr.x + TW/2},${domeTop + domeH * 0.3}
-                   ${domePts.br.x + TW/2},${domeY}
-                   ${domePts.bl.x + TW/2},${domeY}`}
-          fill={GLASS_COLOR}
-          stroke={GLASS_EDGE}
-          strokeWidth="1.5"
-          opacity="0.5"
-        />
-        {/* Effet de reflet sur le verre */}
-        <polygon
-          points={`${domePts.tl.x + TW/2 + 10},${domeTop + domeH * 0.35}
-                   ${domePts.tr.x + TW/2 - 20},${domeTop + domeH * 0.35}
-                   ${domePts.br.x + TW/2 - 15},${domeY + 8}
-                   ${domePts.bl.x + TW/2 + 5},${domeY + 8}`}
-          fill="rgba(255,255,255,0.15)"
-          stroke="none"
-        />
-
-        {/* ── TOIT / DÔME (vue du dessus en perspective) ── */}
-        {/* Triangle du toit */}
-        <polygon
-          points={`${domePts.tl.x + TW/2},${domeTop}
-                   ${domePts.tr.x + TW/2},${domeTop}
-                   ${(domePts.tl.x + domePts.tr.x) / 2 + TW/2},${domeTop + domeH * 0.5}`}
-          fill="rgba(220,245,225,0.3)"
-          stroke={FRAME_COLOR}
-          strokeWidth="1.5"
-          opacity="0.6"
-        />
-
-        {/* Tuiles isométriques back-to-front */}
-        {Array.from({length: ISO_ROWS}, (_,r) =>
-          Array.from({length: ISO_COLS}, (_,c) => {
-            const idx = r * ISO_COLS + c;
-            const {x, y} = isoXY(c, r);
-            const alv = serre.alveoles[idx];
-            const ad = serre.alveoleData?.[idx];
-            const dbPlant = alv ? PLANTS_DB.find(p => p.id === alv.plantId) : null;
-            const stage = alv ? getGrowthStage(ad?.plantedDate, dbPlant?.daysToMaturity || 60) : null;
-            const stageIdx = stage ? Math.min(Math.floor(((Date.now() - new Date(ad?.plantedDate).getTime()) / (1000 * 60 * 60 * 24)) / (dbPlant?.daysToMaturity || 60) * (GROWTH_STAGES.length - 1)), GROWTH_STAGES.length - 1) : null;
-            return (
-              <IsoTerrainBlock
-                key={idx}
-                cx={x + TW/2} cy={y}
-                selected={selectedIdx === idx}
-                isMoving={movingIdx === idx}
-                plant={alv}
-                stage={stage}
-                stageIdx={stageIdx}
-                onClick={() => onCellClick(idx)}
-              />
-            );
-          })
-        )}
-      </g>
-    </svg>
+    <canvas
+      ref={canvasRef}
+      onClick={handleClick}
+      style={{
+        display: 'block',
+        margin: '0 auto',
+        maxWidth: '100%',
+        imageRendering: 'pixelated',
+        cursor: 'pointer',
+      }}
+    />
   );
 }
 
@@ -1299,7 +1119,7 @@ function SerreScreen({ serres, onAddSerre, onTransplant, onRemoveSerreSeed, onMo
             🏠 {serre.name}
             <span style={{ marginLeft: 8, fontSize: 10, color: 'rgba(255,255,255,0.3)', fontWeight: 400 }}>4×6 alvéoles · {serre.alveoles.filter(Boolean).length} occupées</span>
           </div>
-          <IsometricMiniSerre key={tick} serre={serre} selectedIdx={selectedAlv?.serreId === serre.id ? selectedAlv.idx : null} movingIdx={movingFromIdx !== null && selectedAlv?.serreId === serre.id ? movingFromIdx : null} onCellClick={(idx) => handleCellClick(idx, serre)} />
+          <IsometricMiniSerre key={serre.id} serre={serre} selectedIdx={selectedAlv?.serreId === serre.id ? selectedAlv.idx : null} movingIdx={movingFromIdx !== null && selectedAlv?.serreId === serre.id ? movingFromIdx : null} onCellClick={(idx) => handleCellClick(idx, serre)} />
           {showTransplant && selectedAlv?.serreId === serre.id && (() => {
             const alv = serre.alveoles[selectedAlv.idx];
             const ad = serre.alveoleData?.[selectedAlv.idx];
@@ -1309,6 +1129,11 @@ function SerreScreen({ serres, onAddSerre, onTransplant, onRemoveSerreSeed, onMo
             const daysSinceSow = ad?.plantedDate ? Math.floor((Date.now() - new Date(ad.plantedDate).getTime()) / (1000 * 60 * 60 * 24)) : 0;
             const progress = Math.min(daysSinceSow / (dbPlant.daysToMaturity || 60), 1);
             const stage = getGrowthStage(ad?.plantedDate, dbPlant.daysToMaturity || 60);
+            const stageIdx = ad?.plantedDate ? Math.min(
+              Math.floor(((Date.now() - new Date(ad.plantedDate).getTime()) / (1000 * 60 * 60 * 24)) / (dbPlant?.daysToMaturity || 60) * (GROWTH_STAGES.length - 1)),
+              GROWTH_STAGES.length - 1
+            ) : 0;
+            const tileInfo = PLANT_STAGE_TILESET_MAP[alv.plantId];
             return (
               <div style={{ marginTop: 10, padding: 12, background: plant.color + '15', border: `1px solid ${plant.color}40`, borderRadius: 10 }}>
                 <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 8 }}>
@@ -1337,6 +1162,53 @@ function SerreScreen({ serres, onAddSerre, onTransplant, onRemoveSerreSeed, onMo
                   <div onClick={() => { setMovingFromIdx(selectedAlv.idx); setShowTransplant(false); }} style={{ ...S.primaryBtn, background: 'rgba(255,255,255,0.1)', padding: '8px 0', fontSize: 11, flex: 1, border: '1px solid rgba(255,255,255,0.2)' }}>📍 Déplacer</div>
                   <div onClick={() => { onRemoveSerreSeed(serre.id, selectedAlv.idx); setShowTransplant(false); setSelectedAlv(null); }} style={{ ...S.primaryBtn, background: 'rgba(220,53,69,0.2)', padding: '8px 0', fontSize: 11, flex: 1, border: '1px solid rgba(220,53,69,0.4)' }}>🗑️ Supprimer</div>
                 </div>
+                {/* 5-stage evolution reference strip */}
+                {tileInfo && (
+                  <div style={{ marginTop: 12, borderRadius: 8, overflow: 'hidden', border: '1px solid rgba(255,255,255,0.1)' }}>
+                    <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.4)', padding: '6px 10px', background: 'rgba(255,255,255,0.03)', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+                      🔄 Évolution en mini-serre · Stade {stageIdx + 1}/5
+                    </div>
+                    <div style={{ display: 'flex', gap: 2 }}>
+                      {[0,1,2,3,4].map(s => {
+                        const stageLabels = ['Graine','Germination','Levée','Croissance','Prête'];
+                        const isActive = s === stageIdx;
+                        return (
+                          <div key={s} style={{
+                            flex: 1, textAlign: 'center', padding: '6px 2px',
+                            background: isActive ? plant.color + '30' : 'rgba(255,255,255,0.02)',
+                            borderLeft: s > 0 ? '1px solid rgba(255,255,255,0.05)' : 'none',
+                            borderRadius: isActive ? 6 : 0,
+                            position: 'relative',
+                          }}>
+                            <div style={{
+                              width: '100%', height: 48, marginBottom: 4, position: 'relative', overflow: 'hidden', borderRadius: 4,
+                              background: 'rgba(0,0,0,0.2)',
+                            }}>
+                              <img
+                                src={`${TILESET_BASE}${tileInfo.file}`}
+                                style={{
+                                  position: 'absolute',
+                                  top: `${-((TILESET_TITLE_H + tileInfo.row * TILESET_ROW_H + 8) / TILESET_IMG_H * 100)}%`,
+                                  left: `${-((s * TILESET_STAGE_W + 15) / TILESET_IMG_W * 100)}%`,
+                                  width: `${(TILESET_IMG_W / (TILESET_STAGE_W / 1))}px`,
+                                  maxWidth: 'none',
+                                  height: `${TILESET_IMG_H}px`,
+                                  imageRendering: 'pixelated',
+                                }}
+                              />
+                            </div>
+                            <div style={{ fontSize: 8, color: isActive ? plant.color : 'rgba(255,255,255,0.3)', fontWeight: isActive ? 700 : 400 }}>
+                              {stageLabels[s]}
+                            </div>
+                            {isActive && (
+                              <div style={{ position: 'absolute', top: 4, right: 4, width: 6, height: 6, borderRadius: '50%', background: plant.color }}/>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
               </div>
             );
           })()}
