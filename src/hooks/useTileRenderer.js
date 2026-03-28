@@ -121,8 +121,10 @@ function removeBg(cvs) {
 async function prebuildSprites(file) {
   const img = await loadImage(TILESET_BASE + file);
   // Spritesheet layout : 5 cols × 4 rows, with title bar at top
-  const srcW = Math.round(PT_TILE_W - 20);  // crop margin
-  const srcH = Math.round(PT_TILE_H - 8);   // crop margin
+  // Chaque cellule contient : [sprite plante] + [texte en bas]
+  // On ne crop que la zone du sprite (top ~60%) pour exclure le texte
+  const srcW = Math.round(PT_TILE_W - 20);           // crop horizontal
+  const srcH = Math.round(PT_TILE_H * 0.60);          // top 60% = sprite seulement
   const srcX0 = 10;
   const srcY0 = PT_TITLE_H + 4;
 
