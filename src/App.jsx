@@ -483,6 +483,327 @@ function useRealtimeGrowth() {
   return tick;
 }
 
+// ─── ISOMETRIC MINI-SERRE PIXEL-ART ─────────────────────────────────────────
+// Rendu isométrique style ferme/voisin avec textures pixelisées, dôme vitré et bois
+
+const ISO_COLS = 4;
+const ISO_ROWS = 6;
+const TW = 64; // tile width
+const TH = 32; // tile height
+const TD = 22; // tile depth
+
+function isoXY(c, r) {
+  return {
+    x: (c - r) * (TW / 2),
+    y: (c + r) * (TH / 2),
+  };
+}
+
+// ── DEFS SVG réutilisables ────────────────────────────────────────────────────
+function IsoDefs() {
+  return (
+    <defs>
+      {/* PATTERN herbe top */}
+      <pattern id="isoGrassPat" x="0" y="0" width="8" height="8" patternUnits="userSpaceOnUse">
+        <rect width="8" height="8" fill="#5aab2a"/>
+        <rect x="0" y="0" width="4" height="4" fill="#4e9e22" opacity="0.6"/>
+        <rect x="4" y="4" width="4" height="4" fill="#62b830" opacity="0.5"/>
+        <rect x="2" y="1" width="2" height="2" fill="#6ecf38" opacity="0.4"/>
+        <rect x="5" y="5" width="1" height="1" fill="#3d8a18" opacity="0.7"/>
+        <rect x="1" y="5" width="1" height="2" fill="#3d8a18" opacity="0.5"/>
+        <rect x="6" y="2" width="1" height="1" fill="#7add42" opacity="0.3"/>
+      </pattern>
+
+      {/* PATTERN herbe sélectionnée */}
+      <pattern id="isoGrassSelPat" x="0" y="0" width="8" height="8" patternUnits="userSpaceOnUse">
+        <rect width="8" height="8" fill="#72d63a"/>
+        <rect x="0" y="0" width="4" height="4" fill="#65c830" opacity="0.6"/>
+        <rect x="4" y="4" width="4" height="4" fill="#7ae044" opacity="0.5"/>
+        <rect x="2" y="1" width="2" height="2" fill="#88ee50" opacity="0.4"/>
+      </pattern>
+
+      {/* PATTERN dirt côté gauche */}
+      <pattern id="isoDirtLPat" x="0" y="0" width="8" height="8" patternUnits="userSpaceOnUse">
+        <rect width="8" height="8" fill="#8b5e3c"/>
+        <rect x="1" y="1" width="2" height="2" fill="#9e6e48" opacity="0.7"/>
+        <rect x="4" y="3" width="3" height="2" fill="#7a5030" opacity="0.6"/>
+        <rect x="0" y="5" width="2" height="2" fill="#9e6e48" opacity="0.5"/>
+        <rect x="5" y="6" width="2" height="1" fill="#6a4228" opacity="0.7"/>
+        <rect x="3" y="1" width="1" height="1" fill="#b07848" opacity="0.4"/>
+        <rect x="6" y="4" width="1" height="2" fill="#6a4228" opacity="0.5"/>
+      </pattern>
+
+      {/* PATTERN dirt côté droit (plus sombre) */}
+      <pattern id="isoDirtRPat" x="0" y="0" width="8" height="8" patternUnits="userSpaceOnUse">
+        <rect width="8" height="8" fill="#6a4830"/>
+        <rect x="1" y="1" width="2" height="2" fill="#7a5838" opacity="0.7"/>
+        <rect x="4" y="3" width="3" height="2" fill="#5a3c24" opacity="0.6"/>
+        <rect x="0" y="5" width="2" height="2" fill="#7a5838" opacity="0.5"/>
+        <rect x="5" y="6" width="2" height="1" fill="#4a3018" opacity="0.7"/>
+        <rect x="3" y="0" width="1" height="1" fill="#8a6040" opacity="0.4"/>
+      </pattern>
+
+      {/* PATTERN planche bois */}
+      <pattern id="isoPlankPat" x="0" y="0" width="8" height="8" patternUnits="userSpaceOnUse">
+        <rect width="8" height="8" fill="#c8a060"/>
+        <rect x="0" y="0" width="8" height="1" fill="#d4aa6a" opacity="0.5"/>
+        <rect x="0" y="3" width="8" height="1" fill="#b89050" opacity="0.5"/>
+        <rect x="0" y="6" width="8" height="1" fill="#d4aa6a" opacity="0.4"/>
+        <rect x="2" y="0" width="1" height="3" fill="#a87840" opacity="0.3"/>
+        <rect x="6" y="4" width="1" height="4" fill="#a87840" opacity="0.3"/>
+      </pattern>
+
+      {/* PATTERN planche bois sombre */}
+      <pattern id="isoPlankDarkPat" x="0" y="0" width="8" height="8" patternUnits="userSpaceOnUse">
+        <rect width="8" height="8" fill="#a07840"/>
+        <rect x="0" y="0" width="8" height="1" fill="#b08848" opacity="0.5"/>
+        <rect x="0" y="3" width="8" height="1" fill="#907030" opacity="0.5"/>
+        <rect x="0" y="6" width="8" height="1" fill="#b08848" opacity="0.4"/>
+      </pattern>
+
+      {/* Dégradé ciel */}
+      <linearGradient id="isoSkyGrad" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0%" stopColor="#b8d4f0"/>
+        <stop offset="100%" stopColor="#ddeeff"/>
+      </linearGradient>
+    </defs>
+  );
+}
+
+// ── BLOC TERRAIN ISOMÉTRIQUE ─────────────────────────────────────────────────
+function IsoTerrainBlock({ cx, cy, selected, plant, onClick }) {
+  const hw = TW / 2;
+  const hh = TH / 2;
+
+  const topPts   = `${cx},${cy} ${cx+hw},${cy+hh} ${cx},${cy+TH} ${cx-hw},${cy+hh}`;
+  const leftPts  = `${cx-hw},${cy+hh} ${cx},${cy+TH} ${cx},${cy+TH+TD} ${cx-hw},${cy+hh+TD}`;
+  const rightPts = `${cx},${cy+TH} ${cx+hw},${cy+hh} ${cx+hw},${cy+hh+TD} ${cx},${cy+TH+TD}`;
+
+  const grassH = 5;
+  const grassLeftPts  = `${cx-hw},${cy+hh} ${cx},${cy+TH} ${cx},${cy+TH+grassH} ${cx-hw},${cy+hh+grassH}`;
+  const grassRightPts = `${cx},${cy+TH} ${cx+hw},${cy+hh} ${cx+hw},${cy+hh+grassH} ${cx},${cy+TH+grassH}`;
+
+  // Pixels herbe crénelée
+  const crenel = [];
+  const steps = 8;
+  for (let i = 0; i < steps; i++) {
+    const t = i / steps;
+    const bx = cx - hw + hw * t * 2 * 0.5;
+    const by = cy + hh + hh * t;
+    if (i % 2 === 0) crenel.push(<rect key={`cl${i}`} x={bx-1.5} y={by-1} width={3} height={5} fill="#3d8a18" opacity={0.9}/>);
+    const bx2 = cx + hw * t;
+    const by2 = cy + TH - hh * t + hh;
+    if (i % 2 === 1) crenel.push(<rect key={`cr${i}`} x={bx2-1.5} y={by2-1} width={3} height={5} fill="#3d8a18" opacity={0.8}/>);
+  }
+
+  return (
+    <g onClick={onClick} style={{ cursor: "pointer" }}>
+      {/* Faces dirt */}
+      <polygon points={rightPts} fill="url(#isoDirtRPat)" />
+      <polygon points={leftPts} fill="url(#isoDirtLPat)" />
+      {/* Bandes herbe */}
+      <polygon points={grassLeftPts}  fill="#4a9e20" opacity={0.9}/>
+      <polygon points={grassRightPts} fill="#3d8a18" opacity={0.9}/>
+      {/* Pixels crénelés */}
+      {crenel}
+      {/* Face top */}
+      <polygon points={topPts} fill={selected ? "url(#isoGrassSelPat)" : "url(#isoGrassPat)"} />
+      {/* Outline */}
+      <polygon points={topPts} fill="none" stroke={selected ? "#ffffff" : "#2d6e10"} strokeWidth={selected ? 2 : 1} opacity={selected ? 0.9 : 0.5}/>
+      <polygon points={leftPts}  fill="none" stroke="#3d2010" strokeWidth={1} opacity={0.4}/>
+      <polygon points={rightPts} fill="none" stroke="#3d2010" strokeWidth={1} opacity={0.3}/>
+
+      {/* Cailloux */}
+      <ellipse cx={cx - hw*0.5} cy={cy+TH+TD-4} rx={2.5} ry={1.5} fill="#5a3820" opacity={0.6}/>
+      <ellipse cx={cx + hw*0.3} cy={cy+hh+TD-3} rx={2} ry={1} fill="#4a3018" opacity={0.5}/>
+
+      {/* Plante */}
+      {plant ? (
+        <text x={cx} y={cy + hh - 2} textAnchor="middle" fontSize={plant.status === 0 ? 14 : 18}
+          style={{ userSelect:"none", filter:"drop-shadow(0 2px 4px rgba(0,0,0,0.8))" }}>
+          {plant.status === 0 ? "🌱" : PLANTS_SIMPLE.find(p=>p.id===plant.plantId)?.emoji}
+        </text>
+      ) : (
+        <text x={cx} y={cy+hh+4} textAnchor="middle" fontSize={7}
+          fill="rgba(255,255,255,0.15)" style={{userSelect:"none", fontFamily:"monospace"}}>·</text>
+      )}
+
+      {/* Glow sélection */}
+      {selected && (
+        <polygon points={topPts} fill="rgba(255,255,255,0.12)" stroke="#fff" strokeWidth={2}/>
+      )}
+    </g>
+  );
+}
+
+// ── POTEAU BOIS ───────────────────────────────────────────────────────────────
+function IsoWoodPost({ cx, cy }) {
+  const pw = 10, ph = 52, capH = 10, capW = 18;
+  return (
+    <g>
+      <rect x={cx - pw} y={cy - ph} width={pw} height={ph} fill="url(#isoDirtLPat)" opacity={0.9}/>
+      <rect x={cx} y={cy - ph} width={pw*0.6} height={ph} fill="url(#isoDirtRPat)" opacity={0.9}/>
+      <rect x={cx - pw} y={cy - ph} width={pw} height={ph} fill="url(#isoPlankPat)" opacity={0.85}/>
+      <rect x={cx - pw} y={cy - ph} width={pw} height={ph} fill="none" stroke="#5a3010" strokeWidth={1} opacity={0.6}/>
+      {[8,16,24,32,40].map(yy => (
+        <line key={yy} x1={cx-pw+1} y1={cy-ph+yy} x2={cx-2} y2={cy-ph+yy} stroke="#7a4818" strokeWidth={1} opacity={0.3}/>
+      ))}
+      {/* Chapeau */}
+      <rect x={cx - capW/2} y={cy - ph - capH} width={capW} height={capH} fill="url(#isoPlankPat)"/>
+      <rect x={cx - capW/2 + capW} y={cy - ph - capH + 2} width={capW*0.3} height={capH - 2} fill="url(#isoPlankDarkPat)" opacity={0.8}/>
+      <rect x={cx - capW/2} y={cy - ph - capH} width={capW} height={capH} fill="none" stroke="#5a3010" strokeWidth={1} opacity={0.7}/>
+    </g>
+  );
+}
+
+// ── MINI-SERRE ISOMÉTRIQUE COMPLÈTE ──────────────────────────────────────────
+function IsometricMiniSerre({ serre, selectedIdx, onCellClick }) {
+  const allPos = [];
+  for (let r = 0; r < ISO_ROWS; r++)
+    for (let c = 0; c < ISO_COLS; c++)
+      allPos.push(isoXY(c, r));
+
+  const minX = Math.min(...allPos.map(p => p.x)) - TW/2;
+  const maxX = Math.max(...allPos.map(p => p.x)) + TW/2;
+  const minY = Math.min(...allPos.map(p => p.y));
+  const maxY = Math.max(...allPos.map(p => p.y)) + TH + TD;
+
+  const padX = 50, padTop = 90, padBot = 40;
+  const svgW = maxX - minX + padX * 2;
+  const svgH = maxY - minY + padTop + padBot;
+  const ox = -minX + padX;
+  const oy = -minY + padTop;
+
+  // Coins pour poteaux
+  const corners = [
+    isoXY(-0.5, -0.5),
+    isoXY(ISO_COLS - 0.5, -0.5),
+    isoXY(-0.5, ISO_ROWS - 0.5),
+    isoXY(ISO_COLS - 0.5, ISO_ROWS - 0.5),
+  ];
+
+  // Coins serre pour le dôme
+  const tl = isoXY(-0.5, -0.5);
+  const tr = isoXY(ISO_COLS-0.5, -0.5);
+  const bl = isoXY(-0.5, ISO_ROWS-0.5);
+  const br = isoXY(ISO_COLS-0.5, ISO_ROWS-0.5);
+  const domeY = -38;
+  const domeH = 52;
+
+  return (
+    <svg width={svgW} height={svgH} viewBox={`0 0 ${svgW} ${svgH}`}
+      style={{ display:"block", margin:"0 auto", imageRendering:"pixelated", maxWidth:"100%" }}>
+      <IsoDefs />
+
+      {/* Fond ciel */}
+      <rect width={svgW} height={svgH} fill="url(#isoSkyGrad)"/>
+
+      {/* Nuages pixel */}
+      {[[60,18,28,10],[180,28,20,8],[300,12,24,9],[380,22,16,7]].map(([x,y,w,h],i)=>(
+        <g key={i} opacity={0.45}>
+          <rect x={x} y={y} width={w} height={h} rx={4} fill="#fff"/>
+          <rect x={x+4} y={y-4} width={w-8} height={h} rx={3} fill="#fff"/>
+        </g>
+      ))}
+
+      {/* Ombre sol */}
+      <ellipse cx={svgW/2} cy={svgH - 18} rx={svgW*0.36} ry={10}
+        fill="rgba(0,0,0,0.12)"/>
+
+      <g transform={`translate(${ox},${oy})`}>
+
+        {/* DÔME VITRÉ (arrière) */}
+        <rect
+          x={tl.x + TW/2 - 8}
+          y={tl.y + TH/2 + domeY}
+          width={(tr.x + TW/2 + 8) - (tl.x + TW/2 - 8)}
+          height={domeH}
+          fill="rgba(180,230,200,0.25)"
+          stroke="rgba(120,190,130,0.5)"
+          strokeWidth="2"
+          rx="6"
+        />
+
+        {/* Poteaux ARRIÈRE */}
+        {corners.slice(0,2).map(({x,y},i) => (
+          <IsoWoodPost key={i} cx={x + TW/2} cy={y + TH/2}/>
+        ))}
+
+        {/* Tuiles isométriques back-to-front */}
+        {Array.from({length: ISO_ROWS}, (_,r) =>
+          Array.from({length: ISO_COLS}, (_,c) => {
+            const idx = r * ISO_COLS + c;
+            const {x, y} = isoXY(c, r);
+            const alv = serre.alveoles[idx];
+            const ad = serre.alveoleData?.[idx];
+            const dbPlant = alv ? PLANTS_DB.find(p => p.id === alv.plantId) : null;
+            const stage = alv ? getGrowthStage(ad?.plantedDate, dbPlant?.daysToMaturity || 60) : null;
+            const plantData = alv ? { ...alv, status: stage ? (stage.name === 'graine' || stage.name === 'germination' ? 0 : 1) : 0 } : null;
+            return (
+              <IsoTerrainBlock
+                key={idx}
+                cx={x + TW/2} cy={y}
+                selected={selectedIdx === idx}
+                plant={plantData}
+                onClick={() => onCellClick(idx)}
+              />
+            );
+          })
+        )}
+
+        {/* Poteaux AVANT */}
+        {corners.slice(2).map(({x,y},i) => (
+          <IsoWoodPost key={i} cx={x + TW/2} cy={y + TH/2 + 12}/>
+        ))}
+
+        {/* DÔME VITRÉ (avant - reflets) */}
+        <rect
+          x={tl.x + TW/2 - 8}
+          y={tl.y + TH/2 + domeY}
+          width={(tr.x + TW/2 + 8) - (tl.x + TW/2 - 8)}
+          height={domeH}
+          fill="url(#isoSkyGrad)"
+          fillOpacity="0.08"
+          stroke="rgba(140,210,150,0.55)"
+          strokeWidth="2"
+          rx="6"
+          style={{ pointerEvents: "none" }}
+        />
+
+        {/* Traverses du toit */}
+        <g opacity={0.6}>
+          <line x1={tl.x+TW/2} y1={tl.y+TH/2+domeY} x2={tr.x+TW/2} y2={tr.y+TH/2+domeY}
+            stroke="#8a6030" strokeWidth={2} strokeDasharray="4,2"/>
+          <line x1={tl.x+TW/2} y1={tl.y+TH/2+domeY} x2={bl.x+TW/2} y2={bl.y+TH/2+domeY+8}
+            stroke="#8a6030" strokeWidth={2} strokeDasharray="4,2"/>
+          <line x1={tr.x+TW/2} y1={tr.y+TH/2+domeY} x2={br.x+TW/2} y2={br.y+TH/2+domeY+8}
+            stroke="#8a6030" strokeWidth={2} strokeDasharray="4,2"/>
+        </g>
+
+        {/* Label LIDL */}
+        <rect
+          x={(tl.x+tr.x)/2 + TW/2 - 22}
+          y={tl.y + TH/2 + domeY - 14}
+          width={44}
+          height={12}
+          fill="#e63946"
+          rx="2"
+        />
+        <text
+          x={(tl.x+tr.x)/2 + TW/2}
+          y={tl.y + TH/2 + domeY - 5}
+          textAnchor="middle"
+          fontSize="8"
+          fontWeight="800"
+          fill="#fff"
+          fontFamily="Arial, sans-serif"
+          letterSpacing="2"
+        >LIDL</text>
+      </g>
+    </svg>
+  );
+}
+
 // ─── SOWING SCREEN ─────────────────────────────────────────────────────────────
 function SowingScreen({ serres, onAddSerre, onSow }) {
   const [step, setStep] = useState(0);
@@ -655,7 +976,7 @@ function SerreScreen({ serres, onAddSerre, onTransplant }) {
             🏠 {serre.name}
             <span style={{ marginLeft: 8, fontSize: 10, color: 'rgba(255,255,255,0.3)', fontWeight: 400 }}>4×6 alvéoles · {serre.alveoles.filter(Boolean).length} occupées</span>
           </div>
-          <LidlGreenhouse3D key={tick} serre={serre} alveoleData={serre.alveoleData} selectedAlveole={selectedAlv?.serreId === serre.id ? selectedAlv.idx : null} onCellClick={(idx) => {
+          <IsometricMiniSerre key={tick} serre={serre} selectedIdx={selectedAlv?.serreId === serre.id ? selectedAlv.idx : null} onCellClick={(idx) => {
             const alv = serre.alveoles[idx];
             if (alv) { setSelectedAlv({ serreId: serre.id, idx }); setShowTransplant(true); }
             else { setSelectedAlv(null); setShowTransplant(false); }
