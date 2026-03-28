@@ -797,11 +797,6 @@ function IsometricMiniSerre({ serre, selectedIdx, onCellClick }) {
           rx="6"
         />
 
-        {/* Poteaux ARRIÈRE */}
-        {corners.slice(0,2).map(({x,y},i) => (
-          <IsoWoodPost key={i} cx={x + TW/2} cy={y + TH/2}/>
-        ))}
-
         {/* Tuiles isométriques back-to-front */}
         {Array.from({length: ISO_ROWS}, (_,r) =>
           Array.from({length: ISO_COLS}, (_,c) => {
@@ -825,11 +820,6 @@ function IsometricMiniSerre({ serre, selectedIdx, onCellClick }) {
             );
           })
         )}
-
-        {/* Poteaux AVANT */}
-        {corners.slice(2).map(({x,y},i) => (
-          <IsoWoodPost key={i} cx={x + TW/2} cy={y + TH/2 + 12}/>
-        ))}
 
         {/* DÔME VITRÉ (avant - reflets) */}
         <rect
