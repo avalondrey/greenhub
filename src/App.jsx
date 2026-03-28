@@ -1,6 +1,7 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { PLANTS_DB, PLANTS_SIMPLE, generateTasks, estimateYield } from './db/plants.js';
-import useTileCutter, { TOMATO_TILE_MAP } from './hooks/useTileCutter';
+import useTileFusion from './hooks/useTileFusion';
+import { TOMATO_TILE_MAP } from './hooks/useTileFusion';
 
 // ─── GARDEN OBJECTS DATABASE ──────────────────────────────────────────────────
 // Objets du jardin réel : arbres, haies, arbustes, petits fruits, cabanons, serres
@@ -654,7 +655,7 @@ function IsoDefs() {
 
 // ── BLOC TERRAIN ISOMÉTRIQUE ─────────────────────────────────────────────────
 // Supporte tileCutterData: tuiles Canvas pré-découpées depuis le TileSet
-function IsoTerrainBlock({ cx, cy, selected, isMoving, plant, stage, stageIdx, onClick, tileDataURL }) {
+function IsoTerrainBlock({ cx, cy, selected, isMoving, plant, stage, stageIdx, onClick, fusedTile }) {
   const hw = TW / 2;
   const hh = TH / 2;
 
@@ -700,9 +701,46 @@ function IsoTerrainBlock({ cx, cy, selected, isMoving, plant, stage, stageIdx, o
 
   const stageIdxSafe = stageIdx !== null && stageIdx !== undefined ? stageIdx : 0;
 
-  // Rendu d'une plante à un stade donné
-  // La plante pousse depuis la surface de terre (cy + TH)
-  // Priorité: tileDataURL (Canvas découpé) > PLANT_STAGE_TILESET_MAP (SVG crop) > emoji fallback
+  // ── FUSED TILE: bloc terre + sprite pré-fusionnés en une seule image ──
+  if (fusedTile) {
+    // La tuile fusionnée fait FUSED_W × FUSED_H (80×94)
+    // Le bloc de terre commence à SPRITE_AREA (38px) depuis le haut
+    // On aligne le bas de la tuile avec le bas du bloc SVG
+    const fusedW = 80;
+    const fusedH = 94;
+    const spriteArea = 38;
+    return (
+      <g onClick={onClick} style={{ cursor: 'pointer' }}>
+        <image
+          href={fusedTile}
+          x={cx - fusedW / 2}
+          y={cy - spriteArea}
+          width={fusedW}
+          height={fusedH}
+          style={{ imageRendering: 'pixelated' }}
+        />
+        {/* Sélection */}
+        {selected && (
+          <polygon
+            points={`${cx},${cy} ${cx+hw},${cy+hh} ${cx},${cy+TH} ${cx-hw},${cy+hh}`}
+            fill="rgba(255,255,255,0.12)" stroke="#fff" strokeWidth={2}
+          />
+        )}
+        {isMoving && (
+          <>
+            <polygon
+              points={`${cx},${cy} ${cx+hw},${cy+hh} ${cx},${cy+TH} ${cx-hw},${cy+hh}`}
+              fill="rgba(46,204,113,0.2)" stroke="#2ecc71" strokeWidth={2} strokeDasharray="4,2"
+            />
+            <text x={cx} y={cy - 6} textAnchor="middle" fontSize="8" fill="#2ecc71"
+              style={{ userSelect: 'none' }}>📍</text>
+          </>
+        )}
+      </g>
+    );
+  }
+
+  // Rendu d'une plante à un stade donné (fallback pour plantes sans tileset fusionné)
   const renderPlant = () => {
     if (!plant || !stage) return null;
     const plantId = plant.plantId;
@@ -713,72 +751,6 @@ function IsoTerrainBlock({ cx, cy, selected, isMoving, plant, stage, stageIdx, o
     const isInDirt = stageIdxSafe === 0;
     const dirtSurfaceY = cy + TH;
     const plantBaseY = isInDirt ? dirtSurfaceY + TD * 0.4 : dirtSurfaceY;
-
-    // ── PRIORITÉ 1: TileSet découpé par Canvas (tomates S01) ──────────
-    if (tileDataURL) {
-      // Taille du sprite : scale de 0.4 (graine) à 1.4 (prête)
-      // Le sprite isométrique doit flotter au-dessus du bloc terre
-      const imgW = TW * 0.42 + scale * 10;   // 36px → 56px
-      const imgH = imgW * 0.78;               // ratio isométrique 2:1 + hauteur plante
-
-      // Position: le bas du sprite repose sur la surface du dirt
-      // Pour la graine, le sprite est semi-enterré
-      // Pour les autres stades, le sprite flotte au-dessus
-      const floatOffset = isInDirt ? imgH * 0.5 : imgH * 0.85;
-      const plantY = dirtSurfaceY - floatOffset;
-      const plantX = cx - imgW / 2;
-
-      // Shadow ellipse on the dirt surface — wider for bigger plants
-      const shadowRx = imgW * 0.28 + scale * 2;
-      const shadowRy = shadowRx * 0.22;
-
-      return (
-        <>
-          {/* Ombre au sol sur le top-face du bloc terre */}
-          <ellipse cx={cx} cy={dirtSurfaceY - 1} rx={shadowRx} ry={shadowRy}
-            fill="rgba(0,0,0,0.25)"/>
-          {/* Sprite pixel art — ancré par le bas */}
-          <image
-            href={tileDataURL}
-            x={plantX}
-            y={plantY}
-            width={imgW}
-            height={imgH}
-            opacity={opacity}
-            preserveAspectRatio="xMidYMax meet"
-            style={{
-              imageRendering: 'pixelated',
-              filter: isInDirt
-                ? 'drop-shadow(0 0px 1px rgba(0,0,0,0.3))'
-                : 'drop-shadow(0 2px 3px rgba(0,0,0,0.45))',
-            }}
-          />
-          {/* Lueur au sol pour stades en croissance */}
-          {!isInDirt && stageIdxSafe > 0 && stageIdxSafe < 5 && (
-            <ellipse cx={cx} cy={dirtSurfaceY - 1} rx={shadowRx * 0.5} ry={shadowRy * 0.5}
-              fill={glowColor} opacity={0.25}/>
-          )}
-          {/* Barre de progression sur le bord dirt */}
-          {stageIdxSafe > 0 && stageIdxSafe <= 5 && (
-            <g>
-              <rect x={cx - 9} y={dirtSurfaceY + TD - 6} width={18} height={2.5} rx={1}
-                fill="rgba(0,0,0,0.4)"/>
-              <rect x={cx - 9} y={dirtSurfaceY + TD - 6} width={18 * Math.min(stageIdxSafe / 5, 1)} height={2.5} rx={1}
-                fill={glowColor} opacity={0.85}/>
-            </g>
-          )}
-          {/* Badge PRÊTE */}
-          {stageIdxSafe >= 5 && (
-            <>
-              <rect x={cx - 13} y={plantY - 5} width={26} height={9} rx={3}
-                fill="#e63946" stroke="rgba(255,255,255,0.8)" strokeWidth={0.5} opacity={0.95}/>
-              <text x={cx} y={plantY + 2} textAnchor="middle" fontSize="5.5" fill="#fff"
-                style={{ userSelect: 'none', fontFamily: 'monospace', fontWeight: 'bold' }}>PRÊTE!</text>
-            </>
-          )}
-        </>
-      );
-    }
 
     // ── PRIORITÉ 2: SVG crop pour autres plantes ─────────────────────
     const tileInfo = PLANT_STAGE_TILESET_MAP[plantId];
@@ -938,7 +910,7 @@ function IsoWoodPost({ cx, cy }) {
 // ── MINI-SERRE ISOMÉTRIQUE COMPLÈTE ──────────────────────────────────────────
 function IsometricMiniSerre({ serre, selectedIdx, movingIdx, onCellClick }) {
   const tick = useRealtimeGrowth();
-  const { getTileForPlant, loaded, progress } = useTileCutter();
+  const { getTileForPlant, loaded } = useTileFusion();
   const allPos = [];
   for (let r = 0; r < ISO_ROWS; r++)
     for (let c = 0; c < ISO_COLS; c++)
@@ -1003,8 +975,8 @@ function IsometricMiniSerre({ serre, selectedIdx, movingIdx, onCellClick }) {
             const dbPlant = alv ? PLANTS_DB.find(p => p.id === alv.plantId) : null;
             const stage = alv ? getGrowthStage(ad?.plantedDate, dbPlant?.daysToMaturity || 60) : null;
             const stageIdx = stage ? Math.min(Math.floor(((Date.now() - new Date(ad?.plantedDate).getTime()) / (1000 * 60 * 60 * 24)) / (dbPlant?.daysToMaturity || 60) * (GROWTH_STAGES.length - 1)), GROWTH_STAGES.length - 1) : null;
-            // TileSet: tuile Canvas pré-découpée pour tomates
-            const tileDataURL = alv && stageIdx !== null ? getTileForPlant(alv.plantId, stageIdx) : null;
+            // TileFusion: tuile composite (bloc terre + sprite) pour tomates
+            const fusedTile = alv && stageIdx !== null ? getTileForPlant(alv.plantId, stageIdx) : null;
             return (
               <IsoTerrainBlock
                 key={idx}
@@ -1015,7 +987,7 @@ function IsometricMiniSerre({ serre, selectedIdx, movingIdx, onCellClick }) {
                 stage={stage}
                 stageIdx={stageIdx}
                 onClick={() => onCellClick(idx)}
-                tileDataURL={tileDataURL}
+                fusedTile={fusedTile}
               />
             );
           })
