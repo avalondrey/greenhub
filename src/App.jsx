@@ -1,7 +1,6 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { PLANTS_DB, PLANTS_SIMPLE, generateTasks, estimateYield } from './db/plants.js';
-import useTileFusion from './hooks/useTileFusion';
-import { TOMATO_TILE_MAP } from './hooks/useTileFusion';
+import useTileFusion, { TOMATO_TILE_MAP, TILESET_STAGE_COUNT } from './hooks/useTileFusion';
 
 // ─── GARDEN OBJECTS DATABASE ──────────────────────────────────────────────────
 // Objets du jardin réel : arbres, haies, arbustes, petits fruits, cabanons, serres
@@ -97,13 +96,24 @@ const S = {
   primaryBtn: { display: 'block', width: '100%', textAlign: 'center', padding: '12px 0', borderRadius: 12, cursor: 'pointer', fontSize: 14, fontWeight: 700, border: 'none', boxSizing: 'border-box', transition: 'opacity 0.2s' },
 };
 
+// ── GROWTH STAGES (6 stades pour le rendu SVG/emoji fallback) ──
 const GROWTH_STAGES = [
-  { name: 'graine', emoji: '🟤', scale: 0.4, opacity: 0.6 },
+  { name: 'graine',      emoji: '🟤', scale: 0.4, opacity: 0.6 },
   { name: 'germination', emoji: '🌱', scale: 0.6, opacity: 0.8 },
-  { name: 'levée', emoji: '🌿', scale: 0.8, opacity: 0.9 },
-  { name: 'petite', emoji: '🌿', scale: 1.0, opacity: 1.0 },
-  { name: 'moyenne', emoji: '🪴', scale: 1.2, opacity: 1.0 },
-  { name: 'prête', emoji: '🪴', scale: 1.4, opacity: 1.0 },
+  { name: 'levée',       emoji: '🌿', scale: 0.8, opacity: 0.9 },
+  { name: 'petite',      emoji: '🌿', scale: 1.0, opacity: 1.0 },
+  { name: 'moyenne',     emoji: '🪴', scale: 1.2, opacity: 1.0 },
+  { name: 'prête',       emoji: '🪴', scale: 1.4, opacity: 1.0 },
+];
+
+// ── TILESET STAGES (5 stades = colonnes du tileset) ──
+// Utilisé par le moteur de fusion quand le tileset est disponible
+const TILESET_GROWTH = [
+  { name: 'graine',      emoji: '🟤', scale: 0.4, opacity: 0.6 },
+  { name: 'germination', emoji: '🌱', scale: 0.55, opacity: 0.8 },
+  { name: 'levée',       emoji: '🌿', scale: 0.75, opacity: 0.9 },
+  { name: 'croissance',  emoji: '🌿', scale: 0.95, opacity: 1.0 },
+  { name: 'prête',       emoji: '🪴', scale: 1.15, opacity: 1.0 },
 ];
 
 // Map each plantId to its tileset image file and row index (0-based)
@@ -979,8 +989,28 @@ function IsometricMiniSerre({ serre, selectedIdx, movingIdx, onCellClick }) {
             const alv = serre.alveoles[idx];
             const ad = serre.alveoleData?.[idx];
             const dbPlant = alv ? PLANTS_DB.find(p => p.id === alv.plantId) : null;
-            const stage = alv ? getGrowthStage(ad?.plantedDate, dbPlant?.daysToMaturity || 60) : null;
-            const stageIdx = stage ? Math.min(Math.floor(((Date.now() - new Date(ad?.plantedDate).getTime()) / (1000 * 60 * 60 * 24)) / (dbPlant?.daysToMaturity || 60) * (GROWTH_STAGES.length - 1)), GROWTH_STAGES.length - 1) : null;
+            const isTomatoPlant = alv && (alv.plantId in TOMATO_TILE_MAP);
+
+            // ── Calcul du stade : moteur tileset (5) vs SVG fallback (6) ──
+            let stage, stageIdx;
+            if (alv) {
+              const elapsed = ad?.plantedDate
+                ? (Date.now() - new Date(ad.plantedDate).getTime()) / (1000 * 60 * 60 * 24)
+                : 0;
+              const maturity = dbPlant?.daysToMaturity || 60;
+              const progress = Math.min(elapsed / maturity, 1);
+
+              if (isTomatoPlant) {
+                // Moteur tileset : 5 stades (0→4)
+                stageIdx = Math.min(Math.floor(progress * TILESET_STAGE_COUNT), TILESET_STAGE_COUNT - 1);
+                stage = TILESET_GROWTH[stageIdx];
+              } else {
+                // Fallback SVG : 6 stades (0→5)
+                stageIdx = Math.min(Math.floor(progress * (GROWTH_STAGES.length - 1)), GROWTH_STAGES.length - 1);
+                stage = GROWTH_STAGES[stageIdx];
+              }
+            }
+
             // TileFusion: tuile composite (bloc terre + sprite) pour tomates
             const fusedTile = alv && stageIdx !== null ? getTileForPlant(alv.plantId, stageIdx) : null;
             return (

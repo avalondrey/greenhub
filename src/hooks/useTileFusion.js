@@ -52,6 +52,7 @@ export const TOMATO_TILE_MAP = {
 };
 
 const MAX_TILE_STAGE = P_COLS - 1; // 4
+export const TILESET_STAGE_COUNT = P_COLS; // 5 stades dans le tileset
 
 // Échelle visuelle pour chaque stade (0→4)
 const STAGE_SCALES = [0.4, 0.55, 0.75, 0.95, 1.15];
