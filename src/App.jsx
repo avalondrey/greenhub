@@ -173,7 +173,7 @@ function SowingScreen({ serres, onAddSerre, onSow }) {
         <span style={{ fontSize: 28, fontWeight: 700, color: '#fff', minWidth: 36, textAlign: 'center' }}>{qty}</span>
         <div onClick={() => setQty(q => Math.min(SERRE_COLS * SERRE_ROWS, q + 1))} style={S.qBtn}>+</div>
       </div>
-      <div style={S.label}>Dans quelle mini-serre ?</div>
+      <div style={S.label}>Dans quelle mini serre ?</div>
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', margin: '8px 0 10px' }}>
         {serres.map(s => {
           const free = s.alveoles.filter(a => !a).length;
@@ -214,7 +214,7 @@ function SerreScreen({ serres, onAddSerre, onTransplant }) {
   return (
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
-        <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.5)' }}>{serres.length} mini-serre{serres.length > 1 ? 's' : ''}</div>
+        <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.5)' }}>{serres.length} mini serre{serres.length > 1 ? 's' : ''}</div>
         <div onClick={() => setShowAdd(!showAdd)} style={{ padding: '6px 12px', borderRadius: 8, border: '1px dashed rgba(255,255,255,0.2)', color: 'rgba(255,255,255,0.5)', fontSize: 12, cursor: 'pointer' }}>+ Ajouter une serre</div>
       </div>
       {showAdd && (
@@ -702,7 +702,7 @@ export default function App() {
 
       {/* Tabs */}
       <div style={{ display: 'flex', gap: 3, margin: '14px 20px 0' }}>
-        {[['serres', '🏠 Serres'], ['jardin', '🌍 Jardin'], ['semer', '🌱 Semer'], ['game', '⭐ Jeu']].map(([id, label]) => (
+        {[['serres', '🏠 Mini Serres'], ['jardin', '🌍 Jardin'], ['semer', '🌱 Semer'], ['game', '⭐ Jeu']].map(([id, label]) => (
           <div key={id} onClick={() => { setTab(id); if (id === 'game') setShowGame(true); if (id === 'encyclopedia') setShowEncyclopedia(true); }} style={{ flex: 1, textAlign: 'center', padding: '9px 0', borderRadius: 10, cursor: 'pointer', fontSize: 12, background: tab === id ? 'rgba(46,204,113,0.15)' : 'rgba(255,255,255,0.03)', border: `1px solid ${tab === id ? '#2ecc7160' : 'rgba(255,255,255,0.06)'}`, color: tab === id ? '#2ecc71' : 'rgba(255,255,255,0.4)', fontWeight: tab === id ? 600 : 400, transition: 'all 0.2s' }}>{label}</div>
         ))}
       </div>
@@ -718,7 +718,7 @@ export default function App() {
       <div style={{ position: 'fixed', bottom: 0, left: 0, right: 0, padding: '10px 20px', background: 'rgba(13,17,23,0.95)', borderTop: '1px solid rgba(255,255,255,0.06)', display: 'flex', justifyContent: 'space-around', backdropFilter: 'blur(10px)' }}>
         <div onClick={() => setTab('serres')} style={{ textAlign: 'center', cursor: 'pointer' }}>
           <div style={{ fontSize: 20 }}>🏠</div>
-          <div style={{ fontSize: 10, color: tab === 'serres' ? '#2ecc71' : 'rgba(255,255,255,0.3)' }}>Serres</div>
+          <div style={{ fontSize: 10, color: tab === 'serres' ? '#2ecc71' : 'rgba(255,255,255,0.3)' }}>Mini Serres</div>
         </div>
         <div onClick={() => setTab('jardin')} style={{ textAlign: 'center', cursor: 'pointer' }}>
           <div style={{ fontSize: 20 }}>🌍</div>
