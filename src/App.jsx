@@ -104,6 +104,68 @@ const GROWTH_STAGES = [
   { name: 'prête', emoji: '🪴', scale: 1.4, opacity: 1.0 },
 ];
 
+// Map each plantId to its tileset image file and row index (0-based)
+const PLANT_STAGE_TILESET_MAP = {
+  // S01_tomates1.jpg
+  'tomate-coeur-de-boeuf': { file: 'S01_tomates1.jpg', row: 0 },
+  'tomate-cerise': { file: 'S01_tomates1.jpg', row: 1 },
+  'tomate-roma': { file: 'S01_tomates1.jpg', row: 2 },
+  'tomate-ananas': { file: 'S01_tomates1.jpg', row: 3 },
+  // S02_solanacees.jpg
+  'tomate-noire-de-crimee': { file: 'S02_solanacees.jpg', row: 0 },
+  'poivron-ogea': { file: 'S02_solanacees.jpg', row: 1 },
+  'aubergine-beaute': { file: 'S02_solanacees.jpg', row: 2 },
+  'concombre-libanais': { file: 'S02_solanacees.jpg', row: 3 },
+  // S03_courgettes_melon_mais.jpg
+  'courgette-noire': { file: 'S03_courgettes_melon_mais.jpg', row: 0 },
+  'courgette-jaune': { file: 'S03_courgettes_melon_mais.jpg', row: 1 },
+  'melon-cantaloup': { file: 'S03_courgettes_melon_mais.jpg', row: 2 },
+  'mais-doux': { file: 'S03_courgettes_melon_mais.jpg', row: 3 },
+  // S04_haricots_poireau_oignon.jpg
+  'haricot-vert': { file: 'S04_haricots_poireau_oignon.jpg', row: 0 },
+  'haricot-beurre': { file: 'S04_haricots_poireau_oignon.jpg', row: 1 },
+  'poireau-bleu': { file: 'S04_haricots_poireau_oignon.jpg', row: 2 },
+  'oignon-jaune': { file: 'S04_haricots_poireau_oignon.jpg', row: 3 },
+  // S05_ail_carottes_radis.jpg
+  'ail-rose': { file: 'S05_ail_carottes_radis.jpg', row: 0 },
+  'carotte-nantaise': { file: 'S05_ail_carottes_radis.jpg', row: 1 },
+  'carotte-colorée': { file: 'S05_ail_carottes_radis.jpg', row: 2 },
+  'radis-cherry-belle': { file: 'S05_ail_carottes_radis.jpg', row: 3 },
+  // S06_racines_feuilles1.jpg
+  'betterave-ronde': { file: 'S06_racines_feuilles1.jpg', row: 0 },
+  'patate-douce': { file: 'S06_racines_feuilles1.jpg', row: 1 },
+  'celeri-branche': { file: 'S06_racines_feuilles1.jpg', row: 2 },
+  'epinard-monstrueux': { file: 'S06_racines_feuilles1.jpg', row: 3 },
+  // S07_salades_chou.jpg
+  'laitue-batavia': { file: 'S07_salades_chou.jpg', row: 0 },
+  'laitue-romaine': { file: 'S07_salades_chou.jpg', row: 1 },
+  'mesclun': { file: 'S07_salades_chou.jpg', row: 2 },
+  'chou-bleu': { file: 'S07_salades_chou.jpg', row: 3 },
+  // S08_brocoli_fraises_basilic.jpg
+  'brocoli': { file: 'S08_brocoli_fraises_basilic.jpg', row: 0 },
+  'fraise-gariguette': { file: 'S08_brocoli_fraises_basilic.jpg', row: 1 },
+  'fraise-mara-des-bois': { file: 'S08_brocoli_fraises_basilic.jpg', row: 2 },
+  'basilic-grand-vert': { file: 'S08_brocoli_fraises_basilic.jpg', row: 3 },
+  // S09_herbes1.jpg
+  'basilic-thaï': { file: 'S09_herbes1.jpg', row: 0 },
+  'persilCommun': { file: 'S09_herbes1.jpg', row: 1 },
+  'ciboulette': { file: 'S09_herbes1.jpg', row: 2 },
+  'menthe': { file: 'S09_herbes1.jpg', row: 3 },
+  // S10_herbes2.jpg
+  'thym': { file: 'S10_herbes2.jpg', row: 0 },
+  'romarin': { file: 'S10_herbes2.jpg', row: 1 },
+  'origan': { file: 'S10_herbes2.jpg', row: 2 },
+};
+
+const TILESET_BASE = '/tileset/stades-serre/';
+const TILESET_IMG_W = 1344;
+const TILESET_IMG_H = 768;
+const TILESET_TITLE_H = 45; // title area at top
+const TILESET_ROWS = 4;
+const TILESET_STAGES = 5;
+const TILESET_ROW_H = (TILESET_IMG_H - TILESET_TITLE_H) / TILESET_ROWS; // ~180px
+const TILESET_STAGE_W = TILESET_IMG_W / TILESET_STAGES; // ~269px
+
 // ─── LIDL MINI-SERRE 3D PHOTO-RÉALISTE ─────────────────────────────────────
 // Rendu fidèle à la photo : dôme transparent cristallin, bac blanc, plantes visibles
 
@@ -653,70 +715,95 @@ function IsoTerrainBlock({ cx, cy, selected, isMoving, plant, stage, stageIdx, o
   // La plante pousse depuis la surface de terre (cy + TH)
   const renderPlant = () => {
     if (!plant || !stage) return null;
-    const emoji = stage.emoji;
+    const plantId = plant.plantId;
+    const tileInfo = PLANT_STAGE_TILESET_MAP[plantId];
     const scale = stage.scale;
     const opacity = stage.opacity;
     const fontSize = 6 + scale * 6;
-    const plantInfo = PLANTS_SIMPLE.find(p => p.id === plant.plantId);
     const glowColor = glowColors[stageIdxSafe] || glowColors[0];
-
-    // Stade 0 (graine) = à mi-hauteur dans la terre
-    // Stade 1+ = pousse vers le haut depuis la surface
     const isInDirt = stageIdxSafe === 0;
-    const dirtSurfaceY = cy + TH; // sommet de la face dirt (base du losange)
+    const dirtSurfaceY = cy + TH;
     const plantBaseY = isInDirt ? dirtSurfaceY + TD * 0.4 : dirtSurfaceY;
-    const emojiY = isInDirt ? plantBaseY : plantBaseY - fontSize * 0.6;
+
+    if (!tileInfo) {
+      // Fallback to emoji if no tileset mapping
+      const emojiY = isInDirt ? plantBaseY : plantBaseY - fontSize * 0.6;
+      return (
+        <>
+          <ellipse cx={cx} cy={dirtSurfaceY + 1} rx={fontSize * 0.6} ry={fontSize * 0.2} fill="rgba(0,0,0,0.4)"/>
+          <text x={cx} y={emojiY} textAnchor="middle" fontSize={fontSize} opacity={opacity}
+            style={{ userSelect: "none", filter: "drop-shadow(0 1px 2px rgba(0,0,0,0.6))" }}>
+            {stage.emoji}
+          </text>
+          {isInDirt && (
+            <>
+              <ellipse cx={cx} cy={dirtSurfaceY} rx={fontSize * 0.5} ry={fontSize * 0.2} fill="#8b5e3c" opacity={0.7}/>
+              <ellipse cx={cx} cy={dirtSurfaceY - 1} rx={fontSize * 0.35} ry={fontSize * 0.15} fill={glowColor} opacity={0.6}/>
+            </>
+          )}
+        </>
+      );
+    }
+
+    // Tileset sprite rendering
+    const stageIdx = stageIdxSafe;
+    const imgW = 50 + scale * 12; // sprite display size
+    const imgH = imgW * 0.55;
+    const emojiY = isInDirt ? plantBaseY - imgH * 0.3 : plantBaseY - imgH - 2;
+
+    // Source crop coordinates in tileset image
+    const srcX = stageIdx * TILESET_STAGE_W + 15; // slight padding
+    const srcY = TILESET_TITLE_H + tileInfo.row * TILESET_ROW_H + 8;
+    const srcW = TILESET_STAGE_W - 30;
+    const srcH = TILESET_ROW_H - 16;
 
     return (
       <>
-        {/* Ombre sur la surface dirt */}
-        <ellipse cx={cx} cy={dirtSurfaceY + 1} rx={fontSize * 0.6} ry={fontSize * 0.2}
-          fill="rgba(0,0,0,0.4)"/>
-        {/* Petite hale terre autour de la tige */}
+        {/* Shadow on dirt surface */}
+        <ellipse cx={cx} cy={dirtSurfaceY + 1} rx={imgW * 0.35} ry={imgW * 0.08}
+          fill="rgba(0,0,0,0.35)"/>
+        {/* Glow halo */}
         {!isInDirt && (
-          <ellipse cx={cx} cy={dirtSurfaceY} rx={fontSize * 0.35} ry={fontSize * 0.15}
+          <ellipse cx={cx} cy={dirtSurfaceY} rx={imgW * 0.2} ry={imgW * 0.06}
             fill={glowColor} opacity={0.4}/>
         )}
-        {/* Texte emoji - ancré dans/sur la terre */}
-        <text
-          x={cx}
+        {/* Tileset sprite image - cropped from the sprite sheet */}
+        <image
+          href={`${TILESET_BASE}${tileInfo.file}`}
+          x={cx - imgW / 2}
           y={emojiY}
-          textAnchor="middle"
-          dominantBaseline="auto"
-          fontSize={fontSize}
+          width={imgW}
+          height={imgH}
+          hrefX={srcX}
+          hrefY={srcY}
+          hrefWidth={srcW}
+          hrefHeight={srcH}
           opacity={opacity}
+          preserveAspectRatio="xMidYMid meet"
           style={{
-            userSelect: "none",
-            filter: `drop-shadow(0 1px 2px rgba(0,0,0,0.6))`,
+            filter: `drop-shadow(0 2px 4px rgba(0,0,0,0.5))`,
+            imageRendering: 'pixelated',
           }}
-        >
-          {emoji}
-        </text>
-        {/* Indicateur "dans la terre" - petit monticule */}
+        />
+        {/* Dirt mound for seed stage */}
         {isInDirt && (
           <>
-            <ellipse cx={cx} cy={dirtSurfaceY} rx={fontSize * 0.5} ry={fontSize * 0.2}
-              fill="#8b5e3c" opacity={0.7}/>
-            <ellipse cx={cx} cy={dirtSurfaceY - 1} rx={fontSize * 0.35} ry={fontSize * 0.15}
-              fill={glowColor} opacity={0.6}/>
+            <ellipse cx={cx} cy={dirtSurfaceY} rx={imgW * 0.3} ry={imgW * 0.1} fill="#8b5e3c" opacity={0.7}/>
+            <ellipse cx={cx} cy={dirtSurfaceY - 1} rx={imgW * 0.2} ry={imgW * 0.07} fill={glowColor} opacity={0.6}/>
           </>
         )}
-        {/* Indicateur barre de croissance (stade actuel) */}
+        {/* Growth progress bar */}
         {stageIdxSafe > 0 && stageIdxSafe < 5 && (
           <g>
-            <rect x={cx - 10} y={dirtSurfaceY + 2} width={20} height={3} rx={1}
-              fill="rgba(0,0,0,0.4)" opacity={0.7}/>
-            <rect x={cx - 10} y={dirtSurfaceY + 2} width={20 * ((stageIdxSafe) / 6)} height={3} rx={1}
-              fill={glowColor} opacity={0.9}/>
+            <rect x={cx - 10} y={dirtSurfaceY + 2} width={20} height={3} rx={1} fill="rgba(0,0,0,0.4)" opacity={0.7}/>
+            <rect x={cx - 10} y={dirtSurfaceY + 2} width={20 * (stageIdxSafe / 6)} height={3} rx={1} fill={glowColor} opacity={0.9}/>
           </g>
         )}
-        {/* Indicateur "PRÊTE" pour stade max */}
+        {/* PRÊTE badge */}
         {stageIdxSafe === 5 && (
           <>
-            <rect x={cx - 14} y={dirtSurfaceY - 16} width={28} height={9} rx={2}
-              fill="#e63946" opacity={0.9}/>
-            <text x={cx} y={dirtSurfaceY - 9} textAnchor="middle" fontSize="6" fill="#fff"
-              style={{ userSelect: "none" }}>PRÊTE!</text>
+            <rect x={cx - 14} y={emojiY - 4} width={28} height={9} rx={2} fill="#e63946" opacity={0.9}/>
+            <text x={cx} y={emojiY + 3} textAnchor="middle" fontSize="6" fill="#fff" style={{ userSelect: "none" }}>PRÊTE!</text>
           </>
         )}
       </>
@@ -1099,6 +1186,11 @@ function SerreScreen({ serres, onAddSerre, onTransplant, onRemoveSerreSeed, onMo
             const daysSinceSow = ad?.plantedDate ? Math.floor((Date.now() - new Date(ad.plantedDate).getTime()) / (1000 * 60 * 60 * 24)) : 0;
             const progress = Math.min(daysSinceSow / (dbPlant.daysToMaturity || 60), 1);
             const stage = getGrowthStage(ad?.plantedDate, dbPlant.daysToMaturity || 60);
+            const stageIdx = ad?.plantedDate ? Math.min(
+              Math.floor(((Date.now() - new Date(ad.plantedDate).getTime()) / (1000 * 60 * 60 * 24)) / (dbPlant?.daysToMaturity || 60) * (GROWTH_STAGES.length - 1)),
+              GROWTH_STAGES.length - 1
+            ) : 0;
+            const tileInfo = PLANT_STAGE_TILESET_MAP[alv.plantId];
             return (
               <div style={{ marginTop: 10, padding: 12, background: plant.color + '15', border: `1px solid ${plant.color}40`, borderRadius: 10 }}>
                 <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 8 }}>
@@ -1127,6 +1219,53 @@ function SerreScreen({ serres, onAddSerre, onTransplant, onRemoveSerreSeed, onMo
                   <div onClick={() => { setMovingFromIdx(selectedAlv.idx); setShowTransplant(false); }} style={{ ...S.primaryBtn, background: 'rgba(255,255,255,0.1)', padding: '8px 0', fontSize: 11, flex: 1, border: '1px solid rgba(255,255,255,0.2)' }}>📍 Déplacer</div>
                   <div onClick={() => { onRemoveSerreSeed(serre.id, selectedAlv.idx); setShowTransplant(false); setSelectedAlv(null); }} style={{ ...S.primaryBtn, background: 'rgba(220,53,69,0.2)', padding: '8px 0', fontSize: 11, flex: 1, border: '1px solid rgba(220,53,69,0.4)' }}>🗑️ Supprimer</div>
                 </div>
+                {/* 5-stage evolution reference strip */}
+                {tileInfo && (
+                  <div style={{ marginTop: 12, borderRadius: 8, overflow: 'hidden', border: '1px solid rgba(255,255,255,0.1)' }}>
+                    <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.4)', padding: '6px 10px', background: 'rgba(255,255,255,0.03)', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+                      🔄 Évolution en mini-serre · Stade {stageIdx + 1}/5
+                    </div>
+                    <div style={{ display: 'flex', gap: 2 }}>
+                      {[0,1,2,3,4].map(s => {
+                        const stageLabels = ['Graine','Germination','Levée','Croissance','Prête'];
+                        const isActive = s === stageIdx;
+                        return (
+                          <div key={s} style={{
+                            flex: 1, textAlign: 'center', padding: '6px 2px',
+                            background: isActive ? plant.color + '30' : 'rgba(255,255,255,0.02)',
+                            borderLeft: s > 0 ? '1px solid rgba(255,255,255,0.05)' : 'none',
+                            borderRadius: isActive ? 6 : 0,
+                            position: 'relative',
+                          }}>
+                            <div style={{
+                              width: '100%', height: 48, marginBottom: 4, position: 'relative', overflow: 'hidden', borderRadius: 4,
+                              background: 'rgba(0,0,0,0.2)',
+                            }}>
+                              <img
+                                src={`${TILESET_BASE}${tileInfo.file}`}
+                                style={{
+                                  position: 'absolute',
+                                  top: `${-((TILESET_TITLE_H + tileInfo.row * TILESET_ROW_H + 8) / TILESET_IMG_H * 100)}%`,
+                                  left: `${-((s * TILESET_STAGE_W + 15) / TILESET_IMG_W * 100)}%`,
+                                  width: `${(TILESET_IMG_W / (TILESET_STAGE_W / 1))}px`,
+                                  maxWidth: 'none',
+                                  height: `${TILESET_IMG_H}px`,
+                                  imageRendering: 'pixelated',
+                                }}
+                              />
+                            </div>
+                            <div style={{ fontSize: 8, color: isActive ? plant.color : 'rgba(255,255,255,0.3)', fontWeight: isActive ? 700 : 400 }}>
+                              {stageLabels[s]}
+                            </div>
+                            {isActive && (
+                              <div style={{ position: 'absolute', top: 4, right: 4, width: 6, height: 6, borderRadius: '50%', background: plant.color }}/>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
               </div>
             );
           })()}
