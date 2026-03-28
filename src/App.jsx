@@ -1,6 +1,7 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { PLANTS_DB, PLANTS_SIMPLE, generateTasks, estimateYield } from './db/plants.js';
 import useTileRenderer from './hooks/useTileRenderer.js';
+import MiniSerre from './components/MiniSerre.jsx';
 
 // ─── GARDEN OBJECTS DATABASE ──────────────────────────────────────────────────
 // Objets du jardin réel : arbres, haies, arbustes, petits fruits, cabanons, serres
@@ -2260,6 +2261,15 @@ export default function App() {
     showToast('✓ Graine déplacée');
   }, []);
 
+  const handleSetStage = useCallback((serreId, alvIdx, status) => {
+    setSerres(prev => prev.map(s => {
+      if (s.id !== serreId) return s;
+      const alveoleData = { ...(s.alveoleData || {}) };
+      alveoleData[alvIdx] = { ...(alveoleData[alvIdx] || {}), status };
+      return { ...s, alveoleData };
+    }));
+  }, []);
+
   const handleMove = useCallback((fromRow, fromCol, toRow, toCol) => {
     setGardenGrid(prev => {
       const ng = prev.map(r => [...r]);
@@ -2316,7 +2326,7 @@ export default function App() {
       </div>
 
       <div style={{ padding: '14px 20px 0' }}>
-        {tab === 'serres' && <SerreScreen serres={serres} onAddSerre={addSerre} onTransplant={handleTransplant} onRemoveSerreSeed={handleRemoveSerreSeed} onMoveSerreSeed={handleMoveSerreSeed} />}
+        {tab === 'serres' && <MiniSerre serres={serres} plants={PLANTS_DB} onAddSerre={addSerre} onSetStage={handleSetStage} onTransplant={handleTransplant} />}
         {tab === 'jardin' && <GardenScreen grid={gardenGrid} onMove={handleMove} gardenArea={gardenArea} />}
         {tab === 'real_garden' && <GardenRealScreen permanentPlants={permanentPlants} onAddPermanent={(obj) => { setPermanentPlants(p => [...p, obj]); showToast(`🌳 ${obj.name} ajouté au jardin !`); }} onRemovePermanent={(uid) => { setPermanentPlants(p => p.filter(x => x.uid !== uid)); showToast('🗑️ Élément retiré'); }} />}
         {tab === 'semer' && <SowingScreen serres={serres} onAddSerre={addSerre} onSow={handleSow} />}
