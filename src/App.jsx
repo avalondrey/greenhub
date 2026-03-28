@@ -887,11 +887,11 @@ function IsometricMiniSerre({ serre, selectedIdx, movingIdx, onCellClick }) {
 
   // ── Mode tileset : les cellules utilisent les vraies images ──
   const anyTomato = serre.alveoles.some(a => a && isTomato(a.plantId));
-  const useTileEngine = ready && anyTomato;
+  const hasTileset = ready && anyTomato;
 
   // Dimensions de la grille selon le mode
-  const cellW = useTileEngine ? blockW : TW;
-  const cellH = useTileEngine ? blockH : (TH + TD);
+  const cellW = hasTileset ? blockW : TW;
+  const cellH = hasTileset ? blockH : (TH + TD);
 
   // Fonction de position iso adaptée
   const isoPos = (c, r) => ({
@@ -944,7 +944,7 @@ function IsometricMiniSerre({ serre, selectedIdx, movingIdx, onCellClick }) {
       <g transform={`translate(${ox},${oy})`}>
 
         {/* ── MODE MOTEUR TILESET : <image> direct ── */}
-        {useTileEngine ? (
+        {hasTileset ? (
           Array.from({length: ISO_ROWS}, (_,r) =>
             Array.from({length: ISO_COLS}, (_,c) => {
               const idx = r * ISO_COLS + c;
