@@ -4,9 +4,6 @@ import { PLANTS_DB, PLANTS_SIMPLE, generateTasks, estimateYield } from './db/pla
 // ─── CONSTANTS ────────────────────────────────────────────────────────────────
 const SERRE_COLS = 4;
 const SERRE_ROWS = 6;
-const GARDEN_COLS = 44;
-const GARDEN_ROWS = 50;
-const CELL = 32;
 function uid() { return Math.random().toString(36).slice(2, 9); }
 
 // ─── STYLES ───────────────────────────────────────────────────────────────────
@@ -25,98 +22,232 @@ const S = {
   primaryBtn: { display: 'block', width: '100%', textAlign: 'center', padding: '12px 0', borderRadius: 12, cursor: 'pointer', fontSize: 14, fontWeight: 700, border: 'none', boxSizing: 'border-box', transition: 'opacity 0.2s' },
 };
 
-// ─── LIDL MINI-SERRE 3D avec croissance animée ─────────────────────────────────
-// Mini-serre Lidl : 4 colonnes × 6 rangées = 24 alvéoles transparents
-// Croissance animée basée sur le vrai temps écoulé depuis le semis
-
 const GROWTH_STAGES = [
-  { name: 'graine', emoji: '🟤', scale: 0.4, opacity: 0.6, days: 0 },
-  { name: 'germination', emoji: '🌱', scale: 0.6, opacity: 0.8, days: 3 },
-  { name: 'levée', emoji: '🌿', scale: 0.8, opacity: 0.9, days: 7 },
-  { name: 'petite', emoji: '🌿', scale: 1.0, opacity: 1.0, days: 14 },
-  { name: 'moyenne', emoji: '🪴', scale: 1.2, opacity: 1.0, days: 21 },
-  { name: 'prête', emoji: '🪴', scale: 1.4, opacity: 1.0, days: 28 },
+  { name: 'graine', emoji: '🟤', scale: 0.4, opacity: 0.6 },
+  { name: 'germination', emoji: '🌱', scale: 0.6, opacity: 0.8 },
+  { name: 'levée', emoji: '🌿', scale: 0.8, opacity: 0.9 },
+  { name: 'petite', emoji: '🌿', scale: 1.0, opacity: 1.0 },
+  { name: 'moyenne', emoji: '🪴', scale: 1.2, opacity: 1.0 },
+  { name: 'prête', emoji: '🪴', scale: 1.4, opacity: 1.0 },
 ];
+
+// ─── LIDL MINI-SERRE 3D ISOMÉTRIQUE ───────────────────────────────────────
+// Mini-serre Lidl : render 3D isométrique fidèle avec dôme transparent
 
 function getGrowthStage(plantedDate, daysToMaturity) {
   if (!plantedDate) return GROWTH_STAGES[0];
-  const now = Date.now();
-  const elapsed = (now - new Date(plantedDate).getTime()) / (1000 * 60 * 60 * 24);
+  const elapsed = (Date.now() - new Date(plantedDate).getTime()) / (1000 * 60 * 60 * 24);
   const progress = Math.min(elapsed / daysToMaturity, 1);
   const stageIndex = Math.min(Math.floor(progress * (GROWTH_STAGES.length - 1)), GROWTH_STAGES.length - 1);
   return GROWTH_STAGES[stageIndex];
 }
 
 function LidlGreenhouse3D({ serre, onCellClick, selectedAlveole, alveoleData }) {
-  // alveoleData: { [idx]: { plantedDate, daysToMaturity, plantId } }
-  const skewX = 10, skewY = 5;
-  const cellW = 52, cellH = 40;
-  const gap = 4;
+  const tick = useRealtimeGrowth();
   const cols = SERRE_COLS, rows = SERRE_ROWS;
-  const totalW = cols * (cellW + gap) + skewX * 2 + 28;
-  const totalH = rows * (cellH + gap) + skewY * 2 + 60;
+  const cellW = 48, cellH = 36;
+  const gap = 3;
+  const depth = 60; // profondeur du bac
+
+  // Isometric helpers
+  const iso = {
+    translateX: 120,
+    translateY: 30,
+    rotateX: -55,
+    rotateY: -45,
+    skewX: 0,
+    skewY: 0,
+  };
+
+  const plantOpacity = 0.3; // effet transparent serre
 
   return (
-    <div style={{ position: 'relative', width: totalW, height: totalH + 30, margin: '0 auto' }}>
-      {/* Label Lidl */}
-      <div style={{ position: 'absolute', top: -2, left: '50%', transform: 'translateX(-50%)', fontSize: 9, fontWeight: 700, color: '#e74c3c', letterSpacing: 2, textTransform: 'uppercase', background: 'rgba(255,255,255,0.9)', padding: '2px 8px', borderRadius: 4 }}>LIDL</div>
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', marginTop: 8 }}>
+      {/* Wrapper 3D avec perspective */}
+      <div style={{ perspective: 800, perspectiveOrigin: '50% 30%' }}>
+        <div style={{
+          transform: `rotateX(${iso.rotateX}deg) rotateY(${iso.rotateY}deg)`,
+          transformStyle: 'preserve-3d',
+          position: 'relative',
+          width: cols * (cellW + gap) + depth + 20,
+          height: rows * (cellH + gap) + depth + 80,
+        }}>
+          {/* DÔME TRANSPARENT */}
+          <div style={{
+            position: 'absolute',
+            top: 0, left: 10,
+            width: cols * (cellW + gap) + 20,
+            height: rows * (cellH + gap) + depth - 10,
+            background: `linear-gradient(135deg, rgba(200,240,200,${plantOpacity}) 0%, rgba(150,220,150,${plantOpacity * 0.7}) 50%, rgba(100,200,100,${plantOpacity * 0.5}) 100%)`,
+            border: '2px solid rgba(120,200,120,0.6)',
+            borderRadius: '8px 8px 4px 4px',
+            backdropFilter: 'blur(6px)',
+            boxShadow: '0 0 30px rgba(100,200,100,0.2), inset 0 0 20px rgba(255,255,255,0.1)',
+            transform: 'translateZ(30px)',
+          }} />
 
-      {/* Toit transparent effet verre */}
-      <div style={{ position: 'absolute', top: 4, left: skewX, width: cols * (cellW + gap) + 20, height: 20, background: 'linear-gradient(135deg, rgba(180,230,180,0.35) 0%, rgba(120,200,120,0.2) 50%, rgba(80,180,80,0.3) 100%)', border: '2px solid rgba(100,200,100,0.5)', borderRadius: '8px 8px 0 0', transform: `skewX(-${skewX * 0.4}deg)`, backdropFilter: 'blur(4px)', boxShadow: '0 -2px 15px rgba(100,200,100,0.2)' }} />
+          {/* HAUTEUR DOME (toit) */}
+          <div style={{
+            position: 'absolute',
+            top: -28, left: 10,
+            width: cols * (cellW + gap) + 20,
+            height: 32,
+            background: `linear-gradient(180deg, rgba(180,230,180,${plantOpacity * 0.8}) 0%, rgba(140,210,140,${plantOpacity * 0.6}) 100%)`,
+            border: '2px solid rgba(120,200,120,0.5)',
+            borderBottom: 'none',
+            borderRadius: '12px 12px 0 0',
+            backdropFilter: 'blur(4px)',
+            transform: 'translateZ(30px) translateY(0)',
+            boxShadow: '0 -4px 20px rgba(100,200,100,0.15)',
+          }}>
+            {/* Étiquette LIDL sur le dôme */}
+            <div style={{
+              position: 'absolute', top: 8, left: '50%', transform: 'translateX(-50%)',
+              fontSize: 9, fontWeight: 800, color: '#c0392b', letterSpacing: 3,
+              textTransform: 'uppercase', background: 'rgba(255,255,255,0.95)',
+              padding: '2px 10px', borderRadius: 4,
+              boxShadow: '0 1px 4px rgba(0,0,0,0.2)',
+            }}>LIDL</div>
+          </div>
 
-      {/* Panneau latéral gauche (effet 3D profondeur) */}
-      <div style={{ position: 'absolute', top: 22, left: 2, width: skewX + 6, height: rows * (cellH + gap) + 20, background: 'linear-gradient(180deg, rgba(100,180,100,0.2) 0%, rgba(60,120,60,0.15) 100%)', borderLeft: '2px solid rgba(100,200,100,0.4)', borderBottom: '2px solid rgba(80,160,80,0.3)', borderRadius: '0 0 0 4px', transform: 'skewY(-2deg)' }} />
+          {/* FACE AVANT - le bac avec cellules */}
+          <div style={{
+            position: 'absolute',
+            top: 4, left: 14,
+            display: 'grid',
+            gridTemplateColumns: `repeat(${cols}, ${cellW}px)`,
+            gridTemplateRows: `repeat(${rows}, ${cellH}px)`,
+            gap: gap,
+            padding: '10px',
+            background: 'rgba(245,248,240,0.98)',
+            border: '2px solid rgba(100,160,100,0.5)',
+            borderRadius: 4,
+            transform: 'translateZ(2px)',
+            boxShadow: '0 8px 32px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,1)',
+          }}>
+            {Array(rows).fill(null).map((_, row) =>
+              Array(cols).fill(null).map((_, col) => {
+                const idx = row * cols + col;
+                const alv = serre.alveoles[idx];
+                const ad = alveoleData?.[idx];
+                const plant = alv ? PLANTS_SIMPLE.find(p => p.id === alv.plantId) : null;
+                const dbPlant = alv ? PLANTS_DB.find(p => p.id === alv.plantId) : null;
+                const isSelected = selectedAlveole === idx;
+                const stage = alv ? getGrowthStage(ad?.plantedDate, dbPlant?.daysToMaturity || 60) : null;
 
-      {/* Contenant principal */}
-      <div style={{ position: 'absolute', top: 22, left: skewX + 6, display: 'grid', gridTemplateColumns: `repeat(${cols}, ${cellW}px)`, gap: gap, padding: 8, background: 'rgba(245,245,240,0.95)', border: '2px solid rgba(100,180,100,0.4)', borderRadius: '0 4px 4px 0', boxShadow: '0 6px 30px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.8), inset 0 -2px 0 rgba(0,0,0,0.05)' }}>
-        {Array(rows).fill(null).map((_, row) =>
-          Array(cols).fill(null).map((_, col) => {
-            const idx = row * cols + col;
-            const alv = serre.alveoles[idx];
-            const ad = alveoleData?.[idx];
-            const plant = alv ? PLANTS_SIMPLE.find(p => p.id === alv.plantId) : null;
-            const dbPlant = alv ? PLANTS_DB.find(p => p.id === alv.plantId) : null;
-            const isSelected = selectedAlveole === idx;
-            const stage = alv ? getGrowthStage(ad?.plantedDate, dbPlant?.daysToMaturity || 60) : null;
-
-            return (
-              <div key={idx} onClick={() => onCellClick(idx)} style={{ width: cellW, height: cellH, borderRadius: 6, background: plant ? `linear-gradient(135deg, ${plant.color}18 0%, ${plant.color}08 100%)` : 'rgba(200,200,190,0.3)', border: `2px solid ${isSelected ? '#fff' : plant ? plant.color + '60' : 'rgba(150,150,140,0.4)'}`, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', transition: 'all 0.2s', transform: isSelected ? 'scale(1.08) translateY(-2px)' : 'scale(1)', boxShadow: plant ? `0 3px 12px ${plant.color}40, inset 0 1px 0 rgba(255,255,255,0.9)` : 'inset 0 1px 0 rgba(255,255,255,0.9), inset 0 -1px 0 rgba(0,0,0,0.05)', position: 'relative', overflow: 'hidden' }}>
-                {/* Cellule vide */}
-                {!plant && (
-                  <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                    <div style={{ width: 6, height: 6, borderRadius: '50%', background: 'rgba(150,150,140,0.25)', border: '1px solid rgba(150,150,140,0.3)' }} />
+                return (
+                  <div key={idx} onClick={() => onCellClick(idx)} style={{
+                    width: cellW, height: cellH, borderRadius: 5,
+                    background: plant
+                      ? `linear-gradient(135deg, ${plant.color}30 0%, ${plant.color}10 100%)`
+                      : 'rgba(210,210,200,0.4)',
+                    border: `2px solid ${isSelected ? '#fff' : plant ? plant.color + '80' : 'rgba(160,160,150,0.5)'}`,
+                    display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+                    cursor: 'pointer', transition: 'all 0.2s',
+                    transform: isSelected ? 'scale(1.08)' : 'scale(1)',
+                    boxShadow: plant
+                      ? `0 3px 12px ${plant.color}50, inset 0 1px 0 rgba(255,255,255,0.9)`
+                      : 'inset 0 1px 0 rgba(255,255,255,0.9), inset 0 -1px 0 rgba(0,0,0,0.05)',
+                    position: 'relative', overflow: 'hidden',
+                  }}>
+                    {!plant && (
+                      <div style={{ width: 8, height: 8, borderRadius: '50%', background: 'rgba(180,180,170,0.3)', border: '1px solid rgba(180,180,170,0.4)' }} />
+                    )}
+                    {plant && stage && (
+                      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', transform: `scale(${stage.scale * 0.9})`, opacity: stage.opacity, transition: 'all 0.6s ease', filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.3))' }}>
+                        <span style={{ fontSize: 22 }}>{stage.emoji}</span>
+                      </div>
+                    )}
+                    {plant && (
+                      <div style={{ position: 'absolute', bottom: 2, left: 2, right: 2, height: 3, background: 'rgba(200,200,190,0.4)', borderRadius: 2, overflow: 'hidden' }}>
+                        <div style={{
+                          height: '100%',
+                          width: `${ad?.plantedDate ? Math.min((Date.now() - new Date(ad.plantedDate).getTime()) / (1000 * 60 * 60 * 24) / (dbPlant?.daysToMaturity || 60) * 100, 100) : 0}%`,
+                          background: plant.color,
+                          borderRadius: 2,
+                          transition: 'width 1s ease',
+                          boxShadow: `0 0 6px ${plant.color}`,
+                        }} />
+                      </div>
+                    )}
+                    {isSelected && (
+                      <div style={{ position: 'absolute', top: -2, right: -2, width: 12, height: 12, background: '#fff', borderRadius: '50%', border: '2px solid #2ecc71', boxShadow: '0 0 10px rgba(46,204,113,0.7)' }} />
+                    )}
                   </div>
-                )}
+                );
+              })
+            )}
+          </div>
 
-                {/* Plante en croissance */}
-                {plant && stage && (
-                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', transform: `scale(${stage.scale})`, opacity: stage.opacity, transition: 'all 0.5s ease' }}>
-                    <span style={{ fontSize: 20, filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.3))' }}>{stage.emoji}</span>
-                    <div style={{ position: 'absolute', bottom: 2, left: 2, right: 2, height: 3, background: `linear-gradient(90deg, ${plant.color}80, ${plant.color}40)`, borderRadius: 2, overflow: 'hidden' }}>
-                      <div style={{ height: '100%', width: `${Math.min(((Date.now() - new Date(ad?.plantedDate).getTime()) / (1000 * 60 * 60 * 24)) / (dbPlant?.daysToMaturity || 60) * 100, 100)}%`, background: plant.color, borderRadius: 2, transition: 'width 1s ease', boxShadow: `0 0 6px ${plant.color}` }} />
-                    </div>
-                  </div>
-                )}
+          {/* FACE GAUCHE (profondeur) */}
+          <div style={{
+            position: 'absolute',
+            top: 4, left: 0,
+            width: 14,
+            height: rows * (cellH + gap) + 20,
+            background: 'linear-gradient(90deg, rgba(80,140,80,0.4) 0%, rgba(60,100,60,0.3) 100%)',
+            borderLeft: '2px solid rgba(100,180,100,0.5)',
+            transform: 'translateZ(2px) skewY(-3deg)',
+            transformOrigin: 'top right',
+          }} />
 
-                {/* Indicateur sélectionné */}
-                {isSelected && (
-                  <div style={{ position: 'absolute', top: -1, right: -1, width: 10, height: 10, background: '#fff', borderRadius: '50%', border: '2px solid #2ecc71', boxShadow: '0 0 8px rgba(46,204,113,0.6)' }} />
-                )}
-              </div>
-            );
-          })
-        )}
+          {/* FOND DU BAC */}
+          <div style={{
+            position: 'absolute',
+            top: rows * (cellH + gap) + 14, left: 14,
+            width: cols * (cellW + gap) + 20,
+            height: 8,
+            background: 'linear-gradient(180deg, rgba(80,130,80,0.5) 0%, rgba(60,100,60,0.4) 100%)',
+            border: '2px solid rgba(100,160,100,0.4)',
+            borderTop: 'none',
+            borderRadius: '0 0 3px 3px',
+            transform: 'translateZ(2px)',
+          }} />
+
+          {/* PIEDS */}
+          {[
+            { left: 18, top: rows * (cellH + gap) + 22 },
+            { left: cols * (cellW + gap) + 4, top: rows * (cellH + gap) + 22 },
+          ].map((p, i) => (
+            <div key={i} style={{
+              position: 'absolute',
+              left: p.left, top: p.top,
+              width: 8, height: 14,
+              background: 'linear-gradient(180deg, rgba(70,120,70,0.6) 0%, rgba(50,90,50,0.5) 100%)',
+              borderRadius: '0 0 3px 3px',
+              transform: 'translateZ(2px)',
+            }} />
+          ))}
+
+          {/* VAPEUR D'EAU (effet humidité) */}
+          {serre.alveoles.filter(Boolean).length > 0 && (
+            <div style={{
+              position: 'absolute',
+              top: -10, left: 30,
+              width: cols * (cellW + gap) - 20,
+              height: 20,
+              background: 'linear-gradient(180deg, rgba(200,240,200,0) 0%, rgba(200,240,200,0.15) 100%)',
+              borderRadius: '50%',
+              filter: 'blur(8px)',
+              transform: 'translateZ(60px)',
+              animation: 'steam 3s ease-in-out infinite',
+            }} />
+          )}
+        </div>
       </div>
 
-      {/* Pieds supports */}
-      {[-2, cols * (cellW + gap) + skewX + 4].map((left, i) => (
-        <div key={i} style={{ position: 'absolute', bottom: 0, left, width: 6, height: 10, background: 'rgba(80,140,80,0.5)', borderRadius: '0 0 2px 2px' }} />
-      ))}
-
-      {/* Étiquette du terreau */}
-      <div style={{ position: 'absolute', bottom: 0, left: '50%', transform: 'translateX(-50%)', fontSize: 9, color: 'rgba(100,140,100,0.7)', whiteSpace: 'nowrap', background: 'rgba(255,255,255,0.7)', padding: '2px 8px', borderRadius: 8, fontWeight: 600 }}>
-        🌱 {serre.name} · {serre.alveoles.filter(Boolean).length}/24 alvéoles
+      {/* Label */}
+      <div style={{ marginTop: 12, fontSize: 11, color: 'rgba(255,255,255,0.5)', textAlign: 'center' }}>
+        🏠 {serre.name} · {serre.alveoles.filter(Boolean).length}/24 alvéoles
+        {serre.alveoles.filter(Boolean).length > 0 && <span style={{ marginLeft: 8 }}>💧</span>}
       </div>
+
+      <style>{`
+        @keyframes steam {
+          0%, 100% { opacity: 0; transform: translateZ(60px) translateY(0) scaleX(1); }
+          50% { opacity: 0.6; transform: translateZ(60px) translateY(-8px) scaleX(1.1); }
+        }
+      `}</style>
     </div>
   );
 }
@@ -275,12 +406,41 @@ function SerreScreen({ serres, onAddSerre, onTransplant }) {
   );
 }
 
+// ─── JARDIN PARAMÉTRABLE ────────────────────────────────────────────────────
+// Taille par défaut : 550m² = 23.5m × 23.5m
+// Cellule = 50cm (correspond aux plants les plus petits type radis 5cm espacement)
+
+export const GARDEN_CONFIG = {
+  areaM2: 550,
+  cellSize: 50, // cm
+};
+
+export function getGardenMetrics(areaM2) {
+  const sizeM = Math.sqrt(areaM2);
+  const sizeCm = sizeM * 100;
+  const cols = Math.floor(sizeCm / GARDEN_CONFIG.cellSize);
+  const rows = Math.floor(sizeCm / GARDEN_CONFIG.cellSize);
+  return { sizeM, sizeCm, cols, rows, cellSize: GARDEN_CONFIG.cellSize };
+}
+
 // ─── GARDEN GRID ──────────────────────────────────────────────────────────────
-function GardenScreen({ grid, onMove }) {
+function GardenScreen({ grid, onMove, gardenArea }) {
+  const metrics = getGardenMetrics(gardenArea || 550);
+  const { sizeM, cols, rows, cellSize } = metrics;
   const [selected, setSelected] = useState(null);
   const [viewRow, setViewRow] = useState(0);
   const [viewCol, setViewCol] = useState(0);
-  const VIEW_ROWS = 12, VIEW_COLS = 10;
+  const VIEW_ROWS = 10, VIEW_COLS = 12;
+
+  const calcFill = (plantId) => {
+    const occupied = grid.flat().filter(c => c?.origin && c?.plantId === plantId).length;
+    const plant = PLANTS_DB.find(p => p.id === plantId);
+    if (!plant) return null;
+    const maxW = Math.max(1, Math.floor(cols * cellSize / plant.spacing.between));
+    const maxL = Math.max(1, Math.floor(rows * cellSize / plant.spacing.rows));
+    const total = maxW * maxL;
+    return { occupied, total, pct: total > 0 ? (occupied / total) * 100 : 0, plant };
+  };
 
   const handleCellTap = (row, col) => {
     const cell = grid[row]?.[col];
@@ -294,40 +454,71 @@ function GardenScreen({ grid, onMove }) {
     }
   };
 
-  const visibleRows = Array.from({ length: VIEW_ROWS }, (_, i) => i + viewRow).filter(r => r < GARDEN_ROWS);
-  const visibleCols = Array.from({ length: VIEW_COLS }, (_, i) => i + viewCol).filter(c => c < GARDEN_COLS);
+  const visibleRows = Array.from({ length: VIEW_ROWS }, (_, i) => i + viewRow).filter(r => r < rows);
+  const visibleCols = Array.from({ length: VIEW_COLS }, (_, i) => i + viewCol).filter(c => c < cols);
+  const totalPlants = grid.flat().filter(c => c?.origin).length;
+  const gardenAreaUsed = grid.flat().filter(c => c?.origin).reduce((sum, cell) => {
+    const plant = PLANTS_DB.find(p => p.id === cell.plantId);
+    if (!plant) return sum;
+    return sum + (plant.spacing.between * plant.spacing.rows) / 10000;
+  }, 0);
+  const selectedStats = selected ? calcFill(grid[selected.row]?.[selected.col]?.plantId) : null;
 
   return (
     <div>
-      <div style={{ display: 'flex', gap: 8, marginBottom: 10, alignItems: 'center' }}>
-        <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)' }}>550 m² · 44×50 cases · Vue {VIEW_COLS}×{VIEW_ROWS}</div>
-        <div style={{ marginLeft: 'auto', display: 'flex', gap: 4 }}>
-          {[['←', 0, -3], ['→', 0, 3], ['↑', -3, 0], ['↓', 3, 0]].map(([l, dr, dc]) => (
-            <div key={l} onClick={() => { setViewRow(r => Math.max(0, Math.min(GARDEN_ROWS - VIEW_ROWS, r + dr))); setViewCol(c => Math.max(0, Math.min(GARDEN_COLS - VIEW_COLS, c + dc))); }} style={{ width: 28, height: 28, borderRadius: 6, background: 'rgba(255,255,255,0.07)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', fontSize: 13, color: 'rgba(255,255,255,0.6)' }}>{l}</div>
-          ))}
+      <div style={{ display: 'flex', gap: 8, marginBottom: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+        <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)' }}>
+          📐 {sizeM.toFixed(1)}m × {sizeM.toFixed(1)}m = {gardenArea || 550}m² · {cols}×{rows} cases ({cellSize}cm)
+        </div>
+        <div style={{ marginLeft: 'auto', fontSize: 11, color: '#2ecc71' }}>
+          🌱 {totalPlants} plants · 📍 {gardenAreaUsed.toFixed(1)}m² / {gardenArea || 550}m² ({((gardenAreaUsed / (gardenArea || 550)) * 100).toFixed(1)}%)
         </div>
       </div>
-      {selected && (
-        <div style={{ padding: '6px 12px', marginBottom: 8, background: '#3498db20', border: '1px solid #3498db60', borderRadius: 8, fontSize: 12, color: '#3498db' }}>
-          ✦ {PLANTS_SIMPLE.find(p => p.id === grid[selected.row]?.[selected.col]?.plantId)?.name} sélectionné — tape une case vide pour déplacer
+
+      {selectedStats && (
+        <div style={{ padding: '8px 12px', marginBottom: 8, background: selectedStats.plant.color + '15', border: `1px solid ${selectedStats.plant.color}40`, borderRadius: 8, fontSize: 11, color: 'rgba(255,255,255,0.7)' }}>
+          📊 {selectedStats.plant.icon} {selectedStats.plant.name} · {selectedStats.occupied}/{selectedStats.total} plants ({selectedStats.pct.toFixed(1)}%) · espacement {selectedStats.plant.spacing.between}cm × {selectedStats.plant.spacing.rows}cm
         </div>
       )}
-      <div style={{ display: 'grid', gridTemplateColumns: `repeat(${VIEW_COLS}, ${CELL}px)`, gap: 2, background: 'rgba(255,255,255,0.02)', padding: 8, borderRadius: 12, border: '1px solid rgba(255,255,255,0.05)', overflowX: 'auto' }}>
+
+      <div style={{ display: 'flex', gap: 4, marginBottom: 8 }}>
+        {[['↖', -5, -5], ['↑', -5, 0], ['↗', -5, 5], ['←', 0, -5], ['⌀', 0, 0], ['→', 0, 5], ['↙', 5, -5], ['↓', 5, 0], ['↘', 5, 5]].map(([l, dr, dc]) => (
+          <div key={l} onClick={() => { if (l === '⌀') { setViewRow(0); setViewCol(0); } else { setViewRow(r => Math.max(0, Math.min(rows - VIEW_ROWS, r + dr))); setViewCol(c => Math.max(0, Math.min(cols - VIEW_COLS, c + dc))); } }}
+            style={{ padding: '4px 8px', borderRadius: 6, background: l === '⌀' ? '#2ecc71' : 'rgba(255,255,255,0.07)', color: l === '⌀' ? '#0d1117' : 'rgba(255,255,255,0.6)', cursor: 'pointer', fontSize: 12, fontWeight: 700, minWidth: 28, textAlign: 'center' }}>{l}</div>
+        ))}
+      </div>
+
+      {selected && (
+        <div style={{ padding: '6px 12px', marginBottom: 8, background: '#3498db20', border: '1px solid #3498db60', borderRadius: 8, fontSize: 12, color: '#3498db' }}>
+          ✦ {PLANTS_SIMPLE.find(p => p.id === grid[selected.row]?.[selected.col]?.plantId)?.name} — tape une case vide pour déplacer
+        </div>
+      )}
+
+      <div style={{ display: 'grid', gridTemplateColumns: `repeat(${VIEW_COLS}, ${cellSize}px)`, gap: 1, background: 'rgba(255,255,255,0.03)', padding: 6, borderRadius: 10, border: '1px solid rgba(255,255,255,0.06)', overflowX: 'auto' }}>
         {visibleRows.map(row => visibleCols.map(col => {
           const cell = grid[row]?.[col];
           const plant = cell ? PLANTS_SIMPLE.find(p => p.id === cell.plantId) : null;
           const isOrigin = cell?.origin;
           const isSel = selected?.row === row && selected?.col === col;
           return (
-            <div key={`${row}-${col}`} onClick={() => handleCellTap(row, col)} style={{ width: CELL, height: CELL, borderRadius: 5, cursor: isOrigin || selected ? 'pointer' : 'default', background: isSel ? '#3498db30' : isOrigin ? plant.color + '25' : cell ? plant?.color + '10' : 'rgba(255,255,255,0.02)', border: `1.5px solid ${isSel ? '#3498db' : isOrigin ? plant.color + '80' : selected ? 'rgba(255,255,255,0.1)' : 'rgba(255,255,255,0.04)'}`, display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.12s', transform: isSel ? 'scale(1.1)' : 'scale(1)', position: 'relative' }}>
-              {isOrigin && <span style={{ fontSize: 16 }}>{plant?.emoji}</span>}
-              {isOrigin && <div style={{ position: 'absolute', bottom: 1, left: 1, right: 1, height: 2, borderRadius: 1, background: plant?.color, opacity: 0.6 }} />}
-              {!cell && selected && <span style={{ fontSize: 9, color: 'rgba(255,255,255,0.1)' }}>·</span>}
+            <div key={`${row}-${col}`} onClick={() => handleCellTap(row, col)} style={{
+              width: cellSize, height: cellSize, borderRadius: 4, cursor: isOrigin || selected ? 'pointer' : 'default',
+              background: isSel ? '#3498db40' : isOrigin ? plant?.color + '30' : cell ? plant?.color + '15' : 'rgba(255,255,255,0.02)',
+              border: `1.5px solid ${isSel ? '#3498db' : isOrigin ? plant?.color + '90' : selected ? 'rgba(255,255,255,0.12)' : 'rgba(255,255,255,0.04)'}`,
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              transition: 'all 0.12s', transform: isSel ? 'scale(1.1)' : 'scale(1)',
+              position: 'relative', boxShadow: isOrigin ? `0 2px 8px ${plant?.color}40` : 'none',
+            }}>
+              {isOrigin && <span style={{ fontSize: Math.max(10, cellSize * 0.4) }}>{plant?.emoji}</span>}
+              {!cell && selected && <span style={{ fontSize: 8, color: 'rgba(255,255,255,0.1)' }}>·</span>}
             </div>
           );
         }))}
       </div>
-      <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.2)', marginTop: 6, textAlign: 'center' }}>Ligne {viewRow + 1}–{viewRow + VIEW_ROWS} · Col {viewCol + 1}–{viewCol + VIEW_COLS} · Tap plante → tap case vide pour déplacer</div>
+
+      <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.2)', marginTop: 6, textAlign: 'center' }}>
+        📐 {sizeM.toFixed(1)}m × {sizeM.toFixed(1)}m · Grille {cols}×{rows} · {gardenArea || 550}m² total · Cases {cellSize}cm
+      </div>
     </div>
   );
 }
@@ -556,8 +747,10 @@ export default function App() {
   const [serres, setSerres] = useState([
     { id: uid(), name: 'Serre principale', alveoles: Array(SERRE_COLS * SERRE_ROWS).fill(null), alveoleData: {} }
   ]);
+  const [gardenArea, setGardenArea] = useState(550);
+  const gardenMetrics = getGardenMetrics(gardenArea);
   const [gardenGrid, setGardenGrid] = useState(() =>
-    Array(GARDEN_ROWS).fill(null).map(() => Array(GARDEN_COLS).fill(null))
+    Array(gardenMetrics.rows).fill(null).map(() => Array(gardenMetrics.cols).fill(null))
   );
   const [tab, setTab] = useState('serres');
   const [toast, setToast] = useState(null);
@@ -618,6 +811,7 @@ export default function App() {
   }, []);
 
   const handleTransplant = useCallback((serreId, alvIdx) => {
+    const metrics = getGardenMetrics(gardenArea);
     let plant = null;
     setSerres(prev => prev.map(s => {
       if (s.id !== serreId) return s;
@@ -629,11 +823,12 @@ export default function App() {
       return { ...s, alveoles, alveoleData };
     }));
     if (!plant) return;
+    const size = plant.grid_size || 1;
     setGardenGrid(prev => {
       const ng = prev.map(r => [...r]);
-      const size = plant.grid_size;
-      for (let row = 0; row < GARDEN_ROWS - size; row++) {
-        for (let col = 0; col < GARDEN_COLS - size; col++) {
+      const rows = ng.length, cols = ng[0]?.length || 0;
+      for (let row = 0; row < rows - size; row++) {
+        for (let col = 0; col < cols - size; col++) {
           let free = true;
           for (let r = row; r < row + size && free; r++)
             for (let c = col; c < col + size && free; c++)
@@ -642,30 +837,32 @@ export default function App() {
             for (let r = row; r < row + size; r++)
               for (let c = col; c < col + size; c++)
                 ng[r][c] = { plantId: plant.id, origin: r === row && c === col };
-            showToast(`🌍 ${plant.emoji} ${plant.name} repiqué au jardin !`);
+            showToast(`🌍 ${plant.emoji} ${plant.name} repiqué !`);
             setScore(s => { const n = s + 20; setLevel(Math.floor(n / 100) + 1); return n; });
             return ng;
           }
         }
       }
+      showToast('❌ Plus de place dans le jardin !');
       return ng;
     });
     setTab('jardin');
-  }, []);
+  }, [gardenArea]);
 
   const handleMove = useCallback((fromRow, fromCol, toRow, toCol) => {
     setGardenGrid(prev => {
       const ng = prev.map(r => [...r]);
+      const rows = ng.length, cols = ng[0]?.length || 0;
       const cell = ng[fromRow]?.[fromCol];
       if (!cell?.origin) return prev;
       const plant = PLANTS_SIMPLE.find(p => p.id === cell.plantId);
       if (!plant) return prev;
-      const size = plant.grid_size;
+      const size = plant.grid_size || 1;
       for (let r = toRow; r < toRow + size; r++)
         for (let c = toCol; c < toCol + size; c++)
           if (ng[r]?.[c]) return prev;
-      for (let r = 0; r < GARDEN_ROWS; r++)
-        for (let c = 0; c < GARDEN_COLS; c++)
+      for (let r = 0; r < rows; r++)
+        for (let c = 0; c < cols; c++)
           if (ng[r]?.[c]?.plantId === cell.plantId && Math.abs(r - fromRow) < size && Math.abs(c - fromCol) < size)
             ng[r][c] = null;
       for (let r = toRow; r < toRow + size; r++)
@@ -709,7 +906,7 @@ export default function App() {
 
       <div style={{ padding: '14px 20px 0' }}>
         {tab === 'serres' && <SerreScreen serres={serres} onAddSerre={addSerre} onTransplant={handleTransplant} />}
-        {tab === 'jardin' && <GardenScreen grid={gardenGrid} onMove={handleMove} />}
+        {tab === 'jardin' && <GardenScreen grid={gardenGrid} onMove={handleMove} gardenArea={gardenArea} />}
         {tab === 'semer' && <SowingScreen serres={serres} onAddSerre={addSerre} onSow={handleSow} />}
         {tab === 'game' && <GameScreen score={score} level={level} streak={streak} badges={badges} totalPlants={totalGarden} totalYield={totalYield} onClose={() => setTab('serres')} />}
       </div>
