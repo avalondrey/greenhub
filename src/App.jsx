@@ -716,22 +716,28 @@ function IsoTerrainBlock({ cx, cy, selected, isMoving, plant, stage, stageIdx, o
 
     // ── PRIORITÉ 1: TileSet découpé par Canvas (tomates S01) ──────────
     if (tileDataURL) {
-      // Taille du sprite adaptée au bloc de terre (TW=64, TH=32)
-      // Le sprite doit tenir dans le losange isométrique sans déborder
-      const baseSize = TW * 0.55;
-      const imgW = baseSize + scale * 4;
-      const imgH = imgW * 0.7;
-      // Position: ancré sur le dessus du bloc terre, centré
-      const plantY = isInDirt
-        ? dirtSurfaceY - imgH * 0.15
-        : dirtSurfaceY - imgH + 2;
+      // Taille du sprite : scale de 0.4 (graine) à 1.4 (prête)
+      // Le sprite isométrique doit flotter au-dessus du bloc terre
+      const imgW = TW * 0.42 + scale * 10;   // 36px → 56px
+      const imgH = imgW * 0.78;               // ratio isométrique 2:1 + hauteur plante
+
+      // Position: le bas du sprite repose sur la surface du dirt
+      // Pour la graine, le sprite est semi-enterré
+      // Pour les autres stades, le sprite flotte au-dessus
+      const floatOffset = isInDirt ? imgH * 0.5 : imgH * 0.85;
+      const plantY = dirtSurfaceY - floatOffset;
       const plantX = cx - imgW / 2;
+
+      // Shadow ellipse on the dirt surface — wider for bigger plants
+      const shadowRx = imgW * 0.28 + scale * 2;
+      const shadowRy = shadowRx * 0.22;
+
       return (
         <>
-          {/* Ombre douce sous le sprite */}
-          <ellipse cx={cx} cy={dirtSurfaceY + 1} rx={imgW * 0.3} ry={imgW * 0.06}
-            fill="rgba(0,0,0,0.3)"/>
-          {/* Sprite pixel art propre */}
+          {/* Ombre au sol sur le top-face du bloc terre */}
+          <ellipse cx={cx} cy={dirtSurfaceY - 1} rx={shadowRx} ry={shadowRy}
+            fill="rgba(0,0,0,0.25)"/>
+          {/* Sprite pixel art — ancré par le bas */}
           <image
             href={tileDataURL}
             x={plantX}
@@ -739,22 +745,34 @@ function IsoTerrainBlock({ cx, cy, selected, isMoving, plant, stage, stageIdx, o
             width={imgW}
             height={imgH}
             opacity={opacity}
+            preserveAspectRatio="xMidYMax meet"
             style={{
               imageRendering: 'pixelated',
-              filter: 'drop-shadow(0 1px 2px rgba(0,0,0,0.4))',
+              filter: isInDirt
+                ? 'drop-shadow(0 0px 1px rgba(0,0,0,0.3))'
+                : 'drop-shadow(0 2px 3px rgba(0,0,0,0.45))',
             }}
           />
-          {/* Barre de croissance sur le bord dirt */}
-          {stageIdxSafe > 0 && stageIdxSafe < 5 && (
-            <rect x={cx - 8} y={dirtSurfaceY + TD - 5} width={16} height={2} rx={1}
-              fill={glowColor} opacity={0.8}/>
+          {/* Lueur au sol pour stades en croissance */}
+          {!isInDirt && stageIdxSafe > 0 && stageIdxSafe < 5 && (
+            <ellipse cx={cx} cy={dirtSurfaceY - 1} rx={shadowRx * 0.5} ry={shadowRy * 0.5}
+              fill={glowColor} opacity={0.25}/>
+          )}
+          {/* Barre de progression sur le bord dirt */}
+          {stageIdxSafe > 0 && stageIdxSafe <= 5 && (
+            <g>
+              <rect x={cx - 9} y={dirtSurfaceY + TD - 6} width={18} height={2.5} rx={1}
+                fill="rgba(0,0,0,0.4)"/>
+              <rect x={cx - 9} y={dirtSurfaceY + TD - 6} width={18 * Math.min(stageIdxSafe / 5, 1)} height={2.5} rx={1}
+                fill={glowColor} opacity={0.85}/>
+            </g>
           )}
           {/* Badge PRÊTE */}
-          {stageIdxSafe === 5 && (
+          {stageIdxSafe >= 5 && (
             <>
-              <rect x={cx - 12} y={plantY - 3} width={24} height={8} rx={2}
-                fill="#e63946" stroke="#fff" strokeWidth={0.5} opacity={0.95}/>
-              <text x={cx} y={plantY + 3} textAnchor="middle" fontSize="5" fill="#fff"
+              <rect x={cx - 13} y={plantY - 5} width={26} height={9} rx={3}
+                fill="#e63946" stroke="rgba(255,255,255,0.8)" strokeWidth={0.5} opacity={0.95}/>
+              <text x={cx} y={plantY + 2} textAnchor="middle" fontSize="5.5" fill="#fff"
                 style={{ userSelect: 'none', fontFamily: 'monospace', fontWeight: 'bold' }}>PRÊTE!</text>
             </>
           )}
@@ -1213,7 +1231,7 @@ function SerreScreen({ serres, onAddSerre, onTransplant, onRemoveSerreSeed, onMo
             🏠 {serre.name}
             <span style={{ marginLeft: 8, fontSize: 10, color: 'rgba(255,255,255,0.3)', fontWeight: 400 }}>4×6 alvéoles · {serre.alveoles.filter(Boolean).length} occupées</span>
           </div>
-          <IsometricMiniSerre key={tick} serre={serre} selectedIdx={selectedAlv?.serreId === serre.id ? selectedAlv.idx : null} movingIdx={movingFromIdx !== null && selectedAlv?.serreId === serre.id ? movingFromIdx : null} onCellClick={(idx) => handleCellClick(idx, serre)} />
+          <IsometricMiniSerre key={serre.id} serre={serre} selectedIdx={selectedAlv?.serreId === serre.id ? selectedAlv.idx : null} movingIdx={movingFromIdx !== null && selectedAlv?.serreId === serre.id ? movingFromIdx : null} onCellClick={(idx) => handleCellClick(idx, serre)} />
           {showTransplant && selectedAlv?.serreId === serre.id && (() => {
             const alv = serre.alveoles[selectedAlv.idx];
             const ad = serre.alveoleData?.[selectedAlv.idx];
