@@ -655,7 +655,7 @@ function IsoDefs() {
 
 // ── BLOC TERRAIN ISOMÉTRIQUE ─────────────────────────────────────────────────
 // Supporte tileCutterData: tuiles Canvas pré-découpées depuis le TileSet
-function IsoTerrainBlock({ cx, cy, selected, isMoving, plant, stage, stageIdx, onClick, fusedTile }) {
+function IsoTerrainBlock({ cx, cy, selected, isMoving, plant, stage, stageIdx, onClick, fusedTile, terrainDims }) {
   const hw = TW / 2;
   const hh = TH / 2;
 
@@ -701,21 +701,26 @@ function IsoTerrainBlock({ cx, cy, selected, isMoving, plant, stage, stageIdx, o
 
   const stageIdxSafe = stageIdx !== null && stageIdx !== undefined ? stageIdx : 0;
 
-  // ── FUSED TILE: bloc terre + sprite pré-fusionnés en une seule image ──
-  if (fusedTile) {
-    // La tuile fusionnée fait FUSED_W × FUSED_H (80×94)
-    // Le bloc de terre commence à SPRITE_AREA (38px) depuis le haut
-    // On aligne le bas de la tuile avec le bas du bloc SVG
-    const fusedW = 80;
-    const fusedH = 94;
-    const spriteArea = 38;
+  // ── FUSED TILE: vrai bloc terrain pixel art + sprite pré-fusionnés ──
+  if (fusedTile && terrainDims) {
+    const { terrainW, terrainH, spriteArea } = terrainDims;
+    // Le bloc terrain fait terrainW × terrainH (≈290×270)
+    // Le sprite occupe spriteArea px au-dessus
+    // On aligne le bloc terrain avec la position iso (cx, cy = top du diamond SVG)
+    // Le top du diamond dans l'image terrain est à ~32% depuis le haut du bloc
+    const topFaceRatio = 0.32;
+    const terrainTopInImg = Math.round(terrainH * topFaceRatio);
+    const fusedH = spriteArea + terrainH;
+    // On positionne pour que la face top du bloc terrain corresponde à (cx, cy)
+    const imgX = cx - terrainW / 2;
+    const imgY = cy - spriteArea - terrainTopInImg;
     return (
       <g onClick={onClick} style={{ cursor: 'pointer' }}>
         <image
           href={fusedTile}
-          x={cx - fusedW / 2}
-          y={cy - spriteArea}
-          width={fusedW}
+          x={imgX}
+          y={imgY}
+          width={terrainW}
           height={fusedH}
           style={{ imageRendering: 'pixelated' }}
         />
@@ -910,7 +915,8 @@ function IsoWoodPost({ cx, cy }) {
 // ── MINI-SERRE ISOMÉTRIQUE COMPLÈTE ──────────────────────────────────────────
 function IsometricMiniSerre({ serre, selectedIdx, movingIdx, onCellClick }) {
   const tick = useRealtimeGrowth();
-  const { getTileForPlant, loaded } = useTileFusion();
+  const { getTileForPlant, loaded, terrainW, terrainH, spriteArea } = useTileFusion();
+  const terrainDims = loaded ? { terrainW, terrainH, spriteArea } : null;
   const allPos = [];
   for (let r = 0; r < ISO_ROWS; r++)
     for (let c = 0; c < ISO_COLS; c++)
@@ -988,6 +994,7 @@ function IsometricMiniSerre({ serre, selectedIdx, movingIdx, onCellClick }) {
                 stageIdx={stageIdx}
                 onClick={() => onCellClick(idx)}
                 fusedTile={fusedTile}
+                terrainDims={terrainDims}
               />
             );
           })
