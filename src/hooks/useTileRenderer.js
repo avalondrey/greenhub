@@ -20,11 +20,12 @@ const TILE_H = 50;    // diamond height (top face)
 const TILE_D = 30;    // side face depth
 
 // ─── TILESET CONFIG ──────────────────────────────────────────────────────────
-const TILESET_BASE = '/tileset/stades-serre/';
-const PT_IMG_W = 1344, PT_IMG_H = 768, PT_TITLE_H = 50;
+// Tilesets nettoyés : 1340×720, grille 5 cols × 4 rows, pas de barre de titre
+const TILESET_BASE = '/tileset/stades-serre/?v=2';
+const PT_IMG_W = 1340, PT_IMG_H = 720;
 const PT_ROWS = 4, PT_COLS = 5;
-const PT_TILE_W = PT_IMG_W / PT_COLS;           // 268.8
-const PT_TILE_H = (PT_IMG_H - PT_TITLE_H) / PT_ROWS; // 179.5
+const PT_TILE_W = PT_IMG_W / PT_COLS;           // 268
+const PT_TILE_H = PT_IMG_H / PT_ROWS;           // 180
 
 // ─── UNIFIED TILE MAP (all plants → tileset file + row) ─────────────────────
 const TILE_MAP = {
@@ -120,13 +121,11 @@ function removeBg(cvs) {
 
 async function prebuildSprites(file) {
   const img = await loadImage(TILESET_BASE + file);
-  // Spritesheet layout : 5 cols × 4 rows, with title bar at top
-  // Chaque cellule contient : [sprite plante] + [texte en bas]
-  // On ne crop que la zone du sprite (top ~60%) pour exclure le texte
-  const srcW = Math.round(PT_TILE_W - 20);           // crop horizontal
-  const srcH = Math.round(PT_TILE_H * 0.60);          // top 60% = sprite seulement
-  const srcX0 = 10;
-  const srcY0 = PT_TITLE_H + 4;
+  // Tileset nettoyé : grille directe 5×4, pas de texte, pas de titre
+  // On crop chaque cellule complète (le sprite est centré, fond = bg_color)
+  const srcW = Math.round(PT_TILE_W);               // 268px
+  const srcH = Math.round(PT_TILE_H);               // 180px
+  const margin = 6;
 
   for (let row = 0; row < PT_ROWS; row++) {
     for (let col = 0; col < PT_COLS; col++) {
@@ -134,20 +133,15 @@ async function prebuildSprites(file) {
       if (spriteCache[key]) continue;
 
       const cvs = document.createElement('canvas');
-      cvs.width = srcW;
-      cvs.height = srcH;
+      cvs.width = srcW - margin * 2;
+      cvs.height = srcH - margin * 2;
       const ctx = cvs.getContext('2d');
       ctx.imageSmoothingEnabled = false;
 
-      const sx = srcX0 + col * PT_TILE_W;
-      const sy = srcY0 + row * PT_TILE_H;
+      const sx = col * PT_TILE_W + margin;
+      const sy = row * PT_TILE_H + margin;
 
-      // Clamp to image bounds
-      const cw = Math.min(srcW, PT_IMG_W - sx);
-      const ch = Math.min(srcH, PT_IMG_H - sy);
-      if (cw <= 0 || ch <= 0) continue;
-
-      ctx.drawImage(img, sx, sy, cw, ch, 0, 0, cw, ch);
+      ctx.drawImage(img, sx, sy, srcW - margin * 2, srcH - margin * 2, 0, 0, srcW - margin * 2, srcH - margin * 2);
       removeBg(cvs);
       spriteCache[key] = cvs;
     }
