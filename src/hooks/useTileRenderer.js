@@ -517,8 +517,8 @@ function drawPlantFromTileset(ctx, x, y, spriteCanvas, stageIdx, opts = {}) {
   const spriteBottom = isInDirt
     ? dirtSurfaceY + 2
     : stageIdx === 1
-      ? dirtSurfaceY + 30  // levée: +30px
-      : dirtSurfaceY - 15;
+      ? dirtSurfaceY - 20  // levée: -20px
+      : dirtSurfaceY - 5;
   const sprX = anchorX - drawW / 2;
   const sprY = spriteBottom - drawH;
 
