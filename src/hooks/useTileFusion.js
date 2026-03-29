@@ -40,6 +40,9 @@ const BLEED = 4;         // pixels de depassement pour eviter coupe brutale
 const OUTLINE_WIDTH = 2; // epaisseur du contour sombre
 const OUTLINE_COLOR = { r: 5, g: 15, b: 5 };
 
+// ── Facteur de reduction du bloc terrain (pour laisser plus de place aux plantules) ──
+const TERRAIN_SCALE = 0.65; // 65% de la taille originale — ajuste si besoin
+
 export const TOMATO_TILE_MAP = {
   'tomate-coeur-de-boeuf': 0,
   'tomate-cerise': 1,
@@ -190,27 +193,29 @@ function _build() {
       return;
     }
 
-    // Dimensions terrain recadré (avec marge de bleed)
-    const bw = bbox.w, bh = bbox.h;
+    // Dimensions terrain recadré (avec marge de bleed) — échelle réduite
+    const bw = Math.round(bbox.w * TERRAIN_SCALE);
+    const bh = Math.round(bbox.h * TERRAIN_SCALE);
 
-    // Canvas terrain propre avec juste le sprite utile
+    // Canvas terrain propre avec juste le sprite utile, échelle réduite
     const tClean = document.createElement('canvas');
     const tCleanCtx = tClean.getContext('2d');
     tClean.width = bw + OUTLINE_WIDTH * 2;
     tClean.height = bh + OUTLINE_WIDTH * 2;
     tCleanCtx.imageSmoothingEnabled = false;
 
-    // Dessiner outline terrain d'abord
+    // Dessiner outline terrain d'abord (sur le sprite original avant mise à l'échelle)
     drawOutline(tCtx, bbox, OUTLINE_WIDTH, OUTLINE_WIDTH, OUTLINE_WIDTH, OUTLINE_COLOR);
 
-    // Terrain propre
-    tCleanCtx.drawImage(tSprite, bbox.x, bbox.y, bbox.w, bbox.h,
-                        OUTLINE_WIDTH, OUTLINE_WIDTH, bbox.w, bbox.h);
+    // Terrain propre à l'échelle réduite
+    tCleanCtx.drawImage(tSprite,
+      bbox.x, bbox.y, bbox.w, bbox.h,
+      OUTLINE_WIDTH, OUTLINE_WIDTH, bw, bh);
 
     const terrainTile = tClean.toDataURL('image/png');
 
-    // Ratio de la pointe du diamond par rapport à la hauteur totale du bloc terrain
-    // Le diamond top est en haut du bloc utile
+    // Ratio de la pointe du diamond par rapport à la hauteur du bloc terrain
+    // Ce ratio sert à positionner la plante au-dessus du terrain
     const diamondTopRatio = bbox.y / tSprite.height;
 
     // ── 2) Pour chaque sprite plante, fusionner sur le terrain ──
