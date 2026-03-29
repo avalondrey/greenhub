@@ -21,7 +21,8 @@
       "Bash(node:*)",
       "Bash(git reset:*)",
       "Bash(git ls-tree:*)",
-      "Bash(ls -la public/tileset/stades-serre/*.jpg)"
+      "Bash(ls -la public/tileset/stades-serre/*.jpg)",
+      "Bash(cd:*)"
     ]
   }
 }

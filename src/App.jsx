@@ -1170,53 +1170,6 @@ function SerreScreen({ serres, onAddSerre, onTransplant, onRemoveSerreSeed, onMo
                   <div onClick={() => { setMovingFromIdx(selectedAlv.idx); setShowTransplant(false); }} style={{ ...S.primaryBtn, background: 'rgba(255,255,255,0.1)', padding: '8px 0', fontSize: 11, flex: 1, border: '1px solid rgba(255,255,255,0.2)' }}>📍 Déplacer</div>
                   <div onClick={() => { onRemoveSerreSeed(serre.id, selectedAlv.idx); setShowTransplant(false); setSelectedAlv(null); }} style={{ ...S.primaryBtn, background: 'rgba(220,53,69,0.2)', padding: '8px 0', fontSize: 11, flex: 1, border: '1px solid rgba(220,53,69,0.4)' }}>🗑️ Supprimer</div>
                 </div>
-                {/* 5-stage evolution reference strip */}
-                {tileInfo && (
-                  <div style={{ marginTop: 12, borderRadius: 8, overflow: 'hidden', border: '1px solid rgba(255,255,255,0.1)' }}>
-                    <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.4)', padding: '6px 10px', background: 'rgba(255,255,255,0.03)', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
-                      🔄 Évolution en mini-serre · Stade {stageIdx + 1}/5
-                    </div>
-                    <div style={{ display: 'flex', gap: 2 }}>
-                      {[0,1,2,3,4].map(s => {
-                        const stageLabels = ['Graine','Germination','Levée','Croissance','Prête'];
-                        const isActive = s === stageIdx;
-                        return (
-                          <div key={s} style={{
-                            flex: 1, textAlign: 'center', padding: '6px 2px',
-                            background: isActive ? plant.color + '30' : 'rgba(255,255,255,0.02)',
-                            borderLeft: s > 0 ? '1px solid rgba(255,255,255,0.05)' : 'none',
-                            borderRadius: isActive ? 6 : 0,
-                            position: 'relative',
-                          }}>
-                            <div style={{
-                              width: '100%', height: 48, marginBottom: 4, position: 'relative', overflow: 'hidden', borderRadius: 4,
-                              background: 'rgba(0,0,0,0.2)',
-                            }}>
-                              <img
-                                src={`${TILESET_BASE}${tileInfo.file}`}
-                                style={{
-                                  position: 'absolute',
-                                  top: `${-((TILESET_TITLE_H + tileInfo.row * TILESET_ROW_H + 8) / TILESET_IMG_H * 100)}%`,
-                                  left: `${-((s * TILESET_STAGE_W + 15) / TILESET_IMG_W * 100)}%`,
-                                  width: `${(TILESET_IMG_W / (TILESET_STAGE_W / 1))}px`,
-                                  maxWidth: 'none',
-                                  height: `${TILESET_IMG_H}px`,
-                                  imageRendering: 'pixelated',
-                                }}
-                              />
-                            </div>
-                            <div style={{ fontSize: 8, color: isActive ? plant.color : 'rgba(255,255,255,0.3)', fontWeight: isActive ? 700 : 400 }}>
-                              {stageLabels[s]}
-                            </div>
-                            {isActive && (
-                              <div style={{ position: 'absolute', top: 4, right: 4, width: 6, height: 6, borderRadius: '50%', background: plant.color }}/>
-                            )}
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-                )}
               </div>
             );
           })()}
