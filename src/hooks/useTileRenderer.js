@@ -20,54 +20,64 @@ const TILE_H = 50;    // diamond height (top face)
 const TILE_D = 18;    // side face depth (réduit pour blocs plus fins)
 
 // ─── TILESET CONFIG ──────────────────────────────────────────────────────────
-// Tilesets nettoyés : 1340×720, grille 5 cols × 4 rows, pas de barre de titre
-const TILESET_BASE = '/tileset/stades-serre/';
-const PT_IMG_W = 1340, PT_IMG_H = 720;
+// Fichiers miniserre pré-découpés avec fond transparent
+const TILESET_BASE = '/tileset/miniserre/';
 const PT_ROWS = 4, PT_COLS = 5;
-const PT_TILE_W = PT_IMG_W / PT_COLS;           // 268
-const PT_TILE_H = PT_IMG_H / PT_ROWS;           // 180
+// Dimensions par cellule (1000x800 / 5 cols = 200 de large)
+// Ces valeurs sont ignorées pour les PNG car on utilise la taille réelle de l'image
+const CELL_W = 200, CELL_H = 200;
 
-// ─── UNIFIED TILE MAP (all plants → tileset file + row) ─────────────────────
+// ─── UNIFIED TILE MAP (all plants → miniserre PNG file + row) ─────────────────────
 const TILE_MAP = {
-  'tomate-coeur-de-boeuf':    { file: 'S01_tomates1.jpg', row: 0 },
-  'tomate-cerise':            { file: 'S01_tomates1.jpg', row: 1 },
-  'tomate-roma':              { file: 'S01_tomates1.jpg', row: 2 },
-  'tomate-ananas':            { file: 'S01_tomates1.jpg', row: 3 },
-  'tomate-noire-de-crimee':   { file: 'S02_solanacees.jpg', row: 0 },
-  'poivron-ogea':             { file: 'S02_solanacees.jpg', row: 1 },
-  'aubergine-beaute':         { file: 'S02_solanacees.jpg', row: 2 },
-  'concombre-libanais':       { file: 'S02_solanacees.jpg', row: 3 },
-  'courgette-noire':          { file: 'S03_courgettes_melon_mais.jpg', row: 0 },
-  'courgette-jaune':          { file: 'S03_courgettes_melon_mais.jpg', row: 1 },
-  'melon-cantaloup':          { file: 'S03_courgettes_melon_mais.jpg', row: 2 },
-  'mais-doux':                { file: 'S03_courgettes_melon_mais.jpg', row: 3 },
-  'haricot-vert':             { file: 'S04_haricots_poireau_oignon.jpg', row: 0 },
-  'haricot-beurre':           { file: 'S04_haricots_poireau_oignon.jpg', row: 1 },
-  'poireau-bleu':             { file: 'S04_haricots_poireau_oignon.jpg', row: 2 },
-  'oignon-jaune':             { file: 'S04_haricots_poireau_oignon.jpg', row: 3 },
-  'ail-rose':                 { file: 'S05_ail_carottes_radis.jpg', row: 0 },
-  'carotte-nantaise':         { file: 'S05_ail_carottes_radis.jpg', row: 1 },
-  'carotte-colorée':          { file: 'S05_ail_carottes_radis.jpg', row: 2 },
-  'radis-cherry-belle':       { file: 'S05_ail_carottes_radis.jpg', row: 3 },
-  'betterave-ronde':          { file: 'S06_racines_feuilles1.jpg', row: 0 },
-  'patate-douce':             { file: 'S06_racines_feuilles1.jpg', row: 1 },
-  'celeri-branche':           { file: 'S06_racines_feuilles1.jpg', row: 2 },
-  'epinard-monstrueux':       { file: 'S06_racines_feuilles1.jpg', row: 3 },
-  'laitue-batavia':           { file: 'S07_salades_chou.jpg', row: 0 },
-  'laitue-romaine':           { file: 'S07_salades_chou.jpg', row: 1 },
-  'mesclun':                  { file: 'S07_salades_chou.jpg', row: 2 },
-  'chou-bleu':                { file: 'S07_salades_chou.jpg', row: 3 },
-  'brocoli':                  { file: 'S08_brocoli_fraises_basilic.jpg', row: 0 },
-  'fraise-gariguette':        { file: 'S08_brocoli_fraises_basilic.jpg', row: 1 },
-  'fraise-mara-des-bois':     { file: 'S08_brocoli_fraises_basilic.jpg', row: 2 },
-  'basilic-grand-vert':       { file: 'S08_brocoli_fraises_basilic.jpg', row: 3 },
-  'basilic-thaï':             { file: 'S09_herbes1.jpg', row: 0 },
-  'persilCommun':             { file: 'S09_herbes1.jpg', row: 1 },
-  'ciboulette':               { file: 'S09_herbes1.jpg', row: 2 },
-  'menthe':                   { file: 'S09_herbes1.jpg', row: 3 },
-  'thym':                     { file: 'S10_herbes2.jpg', row: 0 },
-  'romarin':                  { file: 'S10_herbes2.jpg', row: 1 },
-  'origan':                   { file: 'S10_herbes2.jpg', row: 2 },
+  // tomates.png — rows 0-3
+  'tomate-coeur-de-boeuf':    { file: 'tomates.png', row: 0 },
+  'tomate-cerise':            { file: 'tomates.png', row: 1 },
+  'tomate-roma':              { file: 'tomates.png', row: 2 },
+  'tomate-ananas':            { file: 'tomates.png', row: 3 },
+  // solanacees.png — rows 0-3
+  'tomate-noire-de-crimee':   { file: 'solanacees.png', row: 0 },
+  'poivron-ogea':             { file: 'solanacees.png', row: 1 },
+  'aubergine-beaute':         { file: 'solanacees.png', row: 2 },
+  'concombre-libanais':       { file: 'solanacees.png', row: 3 },
+  // courgettes.png — rows 0-3
+  'courgette-noire':          { file: 'courgettes.png', row: 0 },
+  'courgette-jaune':          { file: 'courgettes.png', row: 1 },
+  'melon-cantaloup':          { file: 'courgettes.png', row: 2 },
+  'mais-doux':                { file: 'courgettes.png', row: 3 },
+  // haricots.png — rows 0-3
+  'haricot-vert':             { file: 'haricots.png', row: 0 },
+  'haricot-beurre':           { file: 'haricots.png', row: 1 },
+  'poireau-bleu':             { file: 'haricots.png', row: 2 },
+  'oignon-jaune':             { file: 'haricots.png', row: 3 },
+  // ail.png — rows 0-3
+  'ail-rose':                 { file: 'ail.png', row: 0 },
+  'carotte-nantaise':         { file: 'ail.png', row: 1 },
+  'carotte-colorée':          { file: 'ail.png', row: 2 },
+  'radis-cherry-belle':       { file: 'ail.png', row: 3 },
+  // racines.png — rows 0-3
+  'betterave-ronde':          { file: 'racines.png', row: 0 },
+  'patate-douce':             { file: 'racines.png', row: 1 },
+  'celeri-branche':           { file: 'racines.png', row: 2 },
+  'epinard-monstrueux':       { file: 'racines.png', row: 3 },
+  // salades.png — rows 0-3
+  'laitue-batavia':           { file: 'salades.png', row: 0 },
+  'laitue-romaine':           { file: 'salades.png', row: 1 },
+  'mesclun':                  { file: 'salades.png', row: 2 },
+  'chou-bleu':                { file: 'salades.png', row: 3 },
+  // brocoli.png — rows 0-3
+  'brocoli':                  { file: 'brocoli.png', row: 0 },
+  'fraise-gariguette':        { file: 'brocoli.png', row: 1 },
+  'fraise-mara-des-bois':     { file: 'brocoli.png', row: 2 },
+  'basilic-grand-vert':       { file: 'brocoli.png', row: 3 },
+  // herbes1.png — rows 0-3
+  'basilic-thaï':             { file: 'herbes1.png', row: 0 },
+  'persilCommun':             { file: 'herbes1.png', row: 1 },
+  'ciboulette':               { file: 'herbes1.png', row: 2 },
+  'menthe':                   { file: 'herbes1.png', row: 3 },
+  // herbes2.png — rows 0-3
+  'thym':                     { file: 'herbes2.png', row: 0 },
+  'romarin':                  { file: 'herbes2.png', row: 1 },
+  'origan':                   { file: 'herbes2.png', row: 2 },
 };
 
 // ─── STAGE VISUAL CONFIG ────────────────────────────────────────────────────
@@ -177,11 +187,10 @@ function removeBg(cvs) {
 
 async function prebuildSprites(file) {
   const img = await loadImage(TILESET_BASE + file);
-  // Tileset nettoyé : grille directe 5×4, pas de texte, pas de titre
-  // On crop chaque cellule complète (le sprite est centré, fond = bg_color)
-  const srcW = Math.round(PT_TILE_W);               // 268px
-  const srcH = Math.round(PT_TILE_H);               // 180px
-  const margin = 6;
+  // Chaque fichier miniserre est une grille 5 cols × 4 rows
+  // La taille de chaque cellule = taille totale / 5
+  const tileW = Math.round(img.naturalWidth / PT_COLS);
+  const tileH = Math.round(img.naturalHeight / PT_ROWS);
 
   for (let row = 0; row < PT_ROWS; row++) {
     for (let col = 0; col < PT_COLS; col++) {
@@ -189,25 +198,17 @@ async function prebuildSprites(file) {
       if (spriteCache[key]) continue;
 
       const cvs = document.createElement('canvas');
-      cvs.width = srcW - margin * 2;
-      cvs.height = srcH - margin * 2;
+      cvs.width = tileW;
+      cvs.height = tileH;
       const ctx = cvs.getContext('2d');
       ctx.imageSmoothingEnabled = false;
 
-      const sx = col * PT_TILE_W + margin;
-      const sy = row * PT_TILE_H + margin;
+      const sx = col * tileW;
+      const sy = row * tileH;
 
-      ctx.drawImage(img, sx, sy, srcW - margin * 2, srcH - margin * 2, 0, 0, srcW - margin * 2, srcH - margin * 2);
-
-      // Try bg removal, but if canvas becomes tainted (cross-origin), just use as-is
-      let bgRemoved = false;
-      try {
-        removeBg(cvs);
-        bgRemoved = true;
-      } catch (e) {
-        console.warn('[TileRenderer] bg removal skipped for', key, e.message);
-      }
-      spriteCache[key] = { canvas: cvs, bgRemoved };
+      ctx.drawImage(img, sx, sy, tileW, tileH, 0, 0, tileW, tileH);
+      // Pas de removeBg — les PNG miniserre ont déjà fond transparent
+      spriteCache[key] = { canvas: cvs, bgRemoved: true };
     }
   }
 }
