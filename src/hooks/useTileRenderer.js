@@ -17,7 +17,7 @@ export const GRID_COLS = 4;
 export const GRID_ROWS = 6;
 const TILE_W = 100;   // isometric diamond width
 const TILE_H = 50;    // diamond height (top face)
-const TILE_D = 30;    // side face depth
+const TILE_D = 18;    // side face depth (réduit pour blocs plus fins)
 
 // ─── TILESET CONFIG ──────────────────────────────────────────────────────────
 // Tilesets nettoyés : 1340×720, grille 5 cols × 4 rows, pas de barre de titre
@@ -72,6 +72,15 @@ const TILE_MAP = {
 
 // ─── STAGE VISUAL CONFIG ────────────────────────────────────────────────────
 const STAGE_SCALES = [0.4, 0.55, 0.75, 0.95, 1.15];
+
+// ─── SIMPLE SEEDED RANDOM (pour variantes de texture par cellule) ───────────
+function seededRandom(seed) {
+  let s = seed;
+  return function () {
+    s = (s * 16807 + 0) % 2147483647;
+    return (s - 1) / 2147483646;
+  };
+}
 
 // ─── IMAGE LOADER (just HTMLImageElement, no canvas processing) ─────────────
 const imageCache = new Map();
@@ -233,7 +242,7 @@ function calcGridLayout() {
   const maxY = Math.max(...allPos.map(p => p.y)) + TILE_H + TILE_D;
 
   // Add space for tall plants (stage 4 = biggest)
-  const plantHeadroom = 70;
+  const plantHeadroom = 110;
 
   const padX = 40, padTop = 80 + plantHeadroom, padBot = 30;
   return {
@@ -294,16 +303,20 @@ function drawGroundShadow(ctx, w, h) {
 // ─── DRAWING: DIRT BLOCK ────────────────────────────────────────────────────
 
 function drawDirtBlock(ctx, x, y, opts = {}) {
-  const { selected, isMoving, stageIdx = -1, stageTint } = opts;
+  const { selected, isMoving, stageIdx = -1, stageTint, cellSeed = 42 } = opts;
   const hw = TILE_W / 2, hh = TILE_H / 2;
   const cx = x + hw;
+  const rand = seededRandom(cellSeed);
 
-  // ── Top face (diamond) ──
+  // Bleeding : on étend le losange de 2px pour éliminer les lignes vides
+  const BL = 2;
+
+  // ── Top face (diamond + bleeding) ──
   ctx.beginPath();
-  ctx.moveTo(cx, y);
-  ctx.lineTo(x + TILE_W, y + hh);
-  ctx.lineTo(cx, y + TILE_H);
-  ctx.lineTo(x, y + hh);
+  ctx.moveTo(cx, y - BL);
+  ctx.lineTo(x + TILE_W + BL, y + hh);
+  ctx.lineTo(cx, y + TILE_H + BL);
+  ctx.lineTo(x - BL, y + hh);
   ctx.closePath();
 
   // Texture based on stage
@@ -345,17 +358,42 @@ function drawDirtBlock(ctx, x, y, opts = {}) {
     ctx.fillStyle = topGrad;
     ctx.fill();
 
-    // Grass texture
+    // Grass texture — variantes aléatoires par cellule (anti-damier)
     ctx.save();
     ctx.beginPath();
-    ctx.moveTo(cx, y); ctx.lineTo(x + TILE_W, y + hh); ctx.lineTo(cx, y + TILE_H); ctx.lineTo(x, y + hh); ctx.closePath();
+    ctx.moveTo(cx, y - BL); ctx.lineTo(x + TILE_W + BL, y + hh); ctx.lineTo(cx, y + TILE_H + BL); ctx.lineTo(x - BL, y + hh); ctx.closePath();
     ctx.clip();
-    ctx.fillStyle = '#4e9e22';
-    for (let i = 0; i < 8; i++) ctx.fillRect(x + 6 + i * 12 + Math.sin(i * 1.7) * 4, y + 8 + Math.cos(i * 2.3) * 6, 3, 4);
-    ctx.fillStyle = '#3d8a18';
-    for (let i = 0; i < 5; i++) ctx.fillRect(x + 10 + i * 18 + Math.cos(i * 1.3) * 3, y + 14 + Math.sin(i * 1.9) * 5, 2, 5);
-    ctx.fillStyle = '#62b830';
-    for (let i = 0; i < 4; i++) ctx.fillRect(x + 14 + i * 22, y + 6 + Math.sin(i * 2.7) * 4, 2, 3);
+    const grassColors = ['#4e9e22', '#3d8a18', '#62b830', '#55a825'];
+    const grassCount = 6 + Math.floor(rand() * 5);
+    ctx.fillStyle = grassColors[Math.floor(rand() * grassColors.length)];
+    for (let i = 0; i < grassCount; i++) {
+      const gx = x + rand() * (TILE_W - 6) + 3;
+      const gy = y + rand() * (TILE_H - 10) + 5;
+      const gw = 2 + rand() * 2;
+      const gh = 3 + rand() * 4;
+      ctx.fillStyle = grassColors[Math.floor(rand() * grassColors.length)];
+      ctx.fillRect(gx, gy, gw, gh);
+    }
+    if (rand() > 0.65) {
+      const tx = x + 15 + rand() * (TILE_W - 30);
+      const ty = y + 6 + rand() * 8;
+      ctx.fillStyle = '#55a825';
+      ctx.fillRect(tx, ty, 2, 6);
+      ctx.fillRect(tx + 3, ty + 1, 1, 5);
+    }
+    if (rand() > 0.8) {
+      const dx = x + 10 + rand() * (TILE_W - 20);
+      const dy = y + 12 + rand() * (TILE_H - 18);
+      if (rand() > 0.5) {
+        ctx.fillStyle = rand() > 0.5 ? '#e8d44d' : '#f0e8a0';
+        ctx.beginPath(); ctx.arc(dx, dy, 1.5, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = '#4e9e22';
+        ctx.fillRect(dx - 0.5, dy + 1.5, 1, 3);
+      } else {
+        ctx.fillStyle = '#8a7a6a';
+        ctx.beginPath(); ctx.ellipse(dx, dy, 2, 1.2, 0, 0, Math.PI * 2); ctx.fill();
+      }
+    }
     ctx.restore();
   }
 
@@ -369,50 +407,50 @@ function drawDirtBlock(ctx, x, y, opts = {}) {
     ctx.restore();
   }
 
-  // Top outline
+  // Top outline — plus fin et subtil (contenu brun foncé, pas noir pur)
   ctx.beginPath();
   ctx.moveTo(cx, y); ctx.lineTo(x + TILE_W, y + hh); ctx.lineTo(cx, y + TILE_H); ctx.lineTo(x, y + hh); ctx.closePath();
-  ctx.strokeStyle = selected ? '#ffffff' : '#2d6e10';
-  ctx.lineWidth = selected ? 2 : 1;
-  ctx.globalAlpha = selected ? 0.9 : 0.5;
+  ctx.strokeStyle = selected ? '#ffffff' : '#1a4a0c';
+  ctx.lineWidth = selected ? 1.5 : 0.6;
+  ctx.globalAlpha = selected ? 0.85 : 0.30;
   ctx.stroke();
   ctx.globalAlpha = 1;
 
-  // ── Left face ──
+  // ── Left face (éclairée — lumière vient du haut-gauche) ──
   ctx.beginPath();
   ctx.moveTo(x, y + hh); ctx.lineTo(cx, y + TILE_H); ctx.lineTo(cx, y + TILE_H + TILE_D); ctx.lineTo(x, y + hh + TILE_D); ctx.closePath();
   const lGrad = ctx.createLinearGradient(x, y + hh, x + hw, y + TILE_H + TILE_D);
-  lGrad.addColorStop(0, '#6b4226'); lGrad.addColorStop(1, '#5a3520');
+  lGrad.addColorStop(0, '#7d5a3a'); lGrad.addColorStop(1, '#6b4a2e');
   ctx.fillStyle = lGrad; ctx.fill();
-  ctx.fillStyle = 'rgba(0,0,0,0.08)';
+  ctx.fillStyle = 'rgba(0,0,0,0.05)';
   for (let i = 0; i < 4; i++) ctx.fillRect(x + 5 + i * 10, y + TILE_H + 4 + Math.sin(i) * 3, 8, 2);
-  ctx.strokeStyle = '#3d2010'; ctx.lineWidth = 1; ctx.globalAlpha = 0.4; ctx.stroke(); ctx.globalAlpha = 1;
+  ctx.strokeStyle = '#3d2818'; ctx.lineWidth = 0.6; ctx.globalAlpha = 0.25; ctx.stroke(); ctx.globalAlpha = 1;
 
-  // ── Right face ──
+  // ── Right face (dans l'ombre — plus sombre) ──
   ctx.beginPath();
   ctx.moveTo(cx, y + TILE_H); ctx.lineTo(x + TILE_W, y + hh); ctx.lineTo(x + TILE_W, y + hh + TILE_D); ctx.lineTo(cx, y + TILE_H + TILE_D); ctx.closePath();
   const rGrad = ctx.createLinearGradient(cx, y + TILE_H, x + TILE_W, y + hh + TILE_D);
-  rGrad.addColorStop(0, '#7d4f30'); rGrad.addColorStop(1, '#6b4226');
+  rGrad.addColorStop(0, '#5a3520'); rGrad.addColorStop(1, '#4a2a18');
   ctx.fillStyle = rGrad; ctx.fill();
-  ctx.fillStyle = 'rgba(0,0,0,0.06)';
+  ctx.fillStyle = 'rgba(0,0,0,0.10)';
   for (let i = 0; i < 4; i++) ctx.fillRect(cx + 5 + i * 10, y + TILE_H + 5 + Math.cos(i) * 2, 8, 2);
-  ctx.strokeStyle = '#3d2010'; ctx.lineWidth = 1; ctx.globalAlpha = 0.3; ctx.stroke(); ctx.globalAlpha = 1;
+  ctx.strokeStyle = '#3a2010'; ctx.lineWidth = 0.6; ctx.globalAlpha = 0.2; ctx.stroke(); ctx.globalAlpha = 1;
 
-  // Grass strip (only for stages 2+)
+  // Grass strip (only for stages 2+) — plus fin
   if (stageIdx >= 2 || stageIdx === -1) {
-    ctx.fillStyle = '#4a9e20'; ctx.globalAlpha = 0.9;
-    ctx.beginPath(); ctx.moveTo(x, y + hh); ctx.lineTo(cx, y + TILE_H); ctx.lineTo(cx, y + TILE_H + 4); ctx.lineTo(x, y + hh + 4); ctx.closePath(); ctx.fill();
+    ctx.fillStyle = '#4a9e20'; ctx.globalAlpha = 0.7;
+    ctx.beginPath(); ctx.moveTo(x, y + hh); ctx.lineTo(cx, y + TILE_H); ctx.lineTo(cx, y + TILE_H + 3); ctx.lineTo(x, y + hh + 3); ctx.closePath(); ctx.fill();
     ctx.fillStyle = '#3d8a18';
-    ctx.beginPath(); ctx.moveTo(cx, y + TILE_H); ctx.lineTo(x + TILE_W, y + hh); ctx.lineTo(x + TILE_W, y + hh + 4); ctx.lineTo(cx, y + TILE_H + 4); ctx.closePath(); ctx.fill();
+    ctx.beginPath(); ctx.moveTo(cx, y + TILE_H); ctx.lineTo(x + TILE_W, y + hh); ctx.lineTo(x + TILE_W, y + hh + 3); ctx.lineTo(cx, y + TILE_H + 3); ctx.closePath(); ctx.fill();
     ctx.globalAlpha = 1;
   }
 
-  // Pebbles (only for stages 2+ and empty)
+  // Pebbles (only for stages 2+ and empty) — plus discrets
   if (stageIdx >= 2 || stageIdx === -1) {
-    ctx.fillStyle = '#5a3820'; ctx.globalAlpha = 0.6;
-    ctx.beginPath(); ctx.ellipse(cx - hw * 0.5, y + TILE_H + TILE_D - 4, 2.5, 1.5, 0, 0, Math.PI * 2); ctx.fill();
-    ctx.fillStyle = '#4a3018'; ctx.globalAlpha = 0.5;
-    ctx.beginPath(); ctx.ellipse(cx + hw * 0.3, y + hh + TILE_D - 3, 2, 1, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#5a3820'; ctx.globalAlpha = 0.35;
+    ctx.beginPath(); ctx.ellipse(cx - hw * 0.5, y + TILE_H + TILE_D - 3, 1.8, 1, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#4a3018'; ctx.globalAlpha = 0.3;
+    ctx.beginPath(); ctx.ellipse(cx + hw * 0.3, y + hh + TILE_D - 2, 1.5, 0.8, 0, 0, Math.PI * 2); ctx.fill();
     ctx.globalAlpha = 1;
   }
 
@@ -438,8 +476,9 @@ function drawPlantFromTileset(ctx, x, y, spriteCanvas, stageIdx, opts = {}) {
   const srcW = spriteCanvas.width;
   const srcH = spriteCanvas.height;
 
-  // Taille d'affichage : proportionnelle au stade
-  const drawW = TILE_W * (0.5 + scale * 0.4);
+  // Taille d'affichage : proportionnelle au stade, limité pour éviter débordement
+  const maxDrawW = TILE_W * 0.75;
+  const drawW = Math.min(TILE_W * (0.5 + scale * 0.35), maxDrawW);
   const drawH = drawW * (srcH / srcW);
 
   // Position : ancre au BAS du sprite = surface du dirt
@@ -448,10 +487,10 @@ function drawPlantFromTileset(ctx, x, y, spriteCanvas, stageIdx, opts = {}) {
   const anchorX = cx;
   const anchorY = dirtSurfaceY;
 
-  // Ombre portée (sur la terre)
-  ctx.fillStyle = 'rgba(0,0,0,0.25)';
+  // Ombre portée (sur la terre) — plus légère
+  ctx.fillStyle = 'rgba(0,0,0,0.18)';
   ctx.beginPath();
-  ctx.ellipse(anchorX, anchorY - 1, drawW * 0.3, drawW * 0.08, 0, 0, Math.PI * 2);
+  ctx.ellipse(anchorX, anchorY - 1, drawW * 0.25, drawW * 0.06, 0, 0, Math.PI * 2);
   ctx.fill();
 
   // Pour stade 0 (graine), sprite à demi enfoncé dans la terre
@@ -459,11 +498,11 @@ function drawPlantFromTileset(ctx, x, y, spriteCanvas, stageIdx, opts = {}) {
   const sprX = anchorX - drawW / 2;
   const sprY = spriteBottom - drawH;
 
-  // Lueur sous la plante (stade avancé)
+  // Lueur sous la plante (stade avancé) — plus subtile
   if (stageIdx >= 2 && !isInDirt) {
-    ctx.fillStyle = 'rgba(46,125,50,0.3)';
+    ctx.fillStyle = 'rgba(46,125,50,0.2)';
     ctx.beginPath();
-    ctx.ellipse(anchorX, anchorY - 2, drawW * 0.22, drawW * 0.06, 0, 0, Math.PI * 2);
+    ctx.ellipse(anchorX, anchorY - 2, drawW * 0.18, drawW * 0.05, 0, 0, Math.PI * 2);
     ctx.fill();
   }
 
@@ -640,6 +679,7 @@ export default function useTileRenderer() {
             isMoving: isMovingTile,
             stageIdx,
             stageTint: stageTints[stageIdx] || null,
+            cellSeed: idx * 137 + r * 31 + c * 53,
           });
 
           // 2. Plant sprite from tileset
@@ -651,7 +691,7 @@ export default function useTileRenderer() {
             drawEmoji(ctx, x, y, dbPlant?.icon || '🌿', STAGE_SCALES[stageIdx] || 0.5, 0.7 + stageIdx * 0.06);
           }
         } else {
-          drawDirtBlock(ctx, x, y, { selected: isSelected, stageIdx: -1 });
+          drawDirtBlock(ctx, x, y, { selected: isSelected, stageIdx: -1, cellSeed: idx * 137 + r * 31 + c * 53 });
           drawEmptyMarker(ctx, x, y);
         }
       }

@@ -1,0 +1,25 @@
+{
+  "permissions": {
+    "allow": [
+      "WebFetch(domain:github.com)",
+      "WebFetch(domain:greenhub-alpha.vercel.app)",
+      "mcp__claude_ai_Vercel__get_access_to_vercel_url",
+      "Bash(git fetch:*)",
+      "Bash(npx vite:*)",
+      "Bash(npm run:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git push:*)",
+      "mcp__ide__executeCode",
+      "Bash(python3 -c \":*)",
+      "Bash(pip install:*)",
+      "Bash(python -c \":*)",
+      "Bash(python:*)",
+      "Bash(cp:*)",
+      "Bash(file C:/Users/Administrateur/Desktop/GreenHub/public/tileset/stades-serre/square/*)",
+      "Bash(npm install:*)",
+      "Bash(node:*)",
+      "Bash(git reset:*)"
+    ]
+  }
+}

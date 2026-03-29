@@ -556,7 +556,7 @@ const ISO_COLS = 4;
 const ISO_ROWS = 6;
 const TW = 64; // tile width
 const TH = 32; // tile height
-const TD = 22; // tile depth
+const TD = 14; // tile depth (réduit pour blocs plus fins)
 
 function isoXY(c, r) {
   return {
@@ -816,9 +816,9 @@ function IsoTerrainBlock({ cx, cy, selected, isMoving, plant, stage, stageIdx, o
       {/* Faces dirt */}
       <polygon points={rightPts} fill="url(#isoDirtRPat)" />
       <polygon points={leftPts} fill="url(#isoDirtLPat)" />
-      {/* Bandes herbe */}
-      <polygon points={grassLeftPts}  fill="#4a9e20" opacity={0.9}/>
-      <polygon points={grassRightPts} fill="#3d8a18" opacity={0.9}/>
+      {/* Bandes herbe — droite plus sombre (ombre) */}
+      <polygon points={grassLeftPts}  fill="#4a9e20" opacity={0.85}/>
+      <polygon points={grassRightPts} fill="#3a7814" opacity={0.75}/>
       {/* Pixels crénelés */}
       {crenel}
       {/* Face top - selon stade de croissance */}
@@ -836,10 +836,10 @@ function IsoTerrainBlock({ cx, cy, selected, isMoving, plant, stage, stageIdx, o
       {plant && stage && (
         <polygon points={topPts} fill={stageColors[stageIdxSafe] || stageColors[0]} style={{ mixBlendMode: 'overlay' }}/>
       )}
-      {/* Outline */}
-      <polygon points={topPts} fill="none" stroke={selected ? "#ffffff" : "#2d6e10"} strokeWidth={selected ? 2 : 1} opacity={selected ? 0.9 : 0.5}/>
-      <polygon points={leftPts}  fill="none" stroke="#3d2010" strokeWidth={1} opacity={0.4}/>
-      <polygon points={rightPts} fill="none" stroke="#3d2010" strokeWidth={1} opacity={0.3}/>
+      {/* Outline — plus fin */}
+      <polygon points={topPts} fill="none" stroke={selected ? "#ffffff" : "#2d6e10"} strokeWidth={selected ? 1.5 : 0.6} opacity={selected ? 0.85 : 0.35}/>
+      <polygon points={leftPts}  fill="none" stroke="#3d2010" strokeWidth={0.6} opacity={0.25}/>
+      <polygon points={rightPts} fill="none" stroke="#3d2010" strokeWidth={0.6} opacity={0.2}/>
 
       {/* Cailloux */}
       <ellipse cx={cx - hw*0.5} cy={cy+TH+TD-4} rx={2.5} ry={1.5} fill="#5a3820" opacity={0.6}/>

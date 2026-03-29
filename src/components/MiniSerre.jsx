@@ -246,9 +246,9 @@ const styles = {
   serreCount: { fontSize: 6, color: '#2a5a15', opacity: 0.7 },
 
   canvasWrapper: {
-    border: '4px solid #5d8a3c',
-    boxShadow: '4px 4px 0 #2d5a1b, 8px 8px 0 rgba(0,0,0,0.25)',
-    overflow: 'hidden', borderRadius: 2, background: '#1a2a44',
+    border: '2px solid #5d8a3c',
+    boxShadow: '3px 3px 0 #2d5a1b, 6px 6px 0 rgba(0,0,0,0.2)',
+    overflow: 'hidden', borderRadius: 3, background: '#1a2a44',
   },
 
   loadingBox: {
