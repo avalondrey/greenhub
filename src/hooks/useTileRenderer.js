@@ -94,7 +94,14 @@ function loadImage(url) {
     const img = new Image();
     img.crossOrigin = 'anonymous';
     img.onload = () => { imageCache.set(url, img); loadingPromises.delete(url); resolve(img); };
-    img.onerror = () => { loadingPromises.delete(url); console.warn('[TileRenderer] Failed:', url); reject(url); };
+    img.onerror = () => {
+      // Retry without CORS (for local dev without proper headers)
+      loadingPromises.delete(url);
+      const img2 = new Image();
+      img2.onload = () => { imageCache.set(url, img2); resolve(img2); };
+      img2.onerror = () => { console.warn('[TileRenderer] Failed:', url); reject(url); };
+      img2.src = url;
+    };
     img.src = url;
   });
   loadingPromises.set(url, p);
@@ -163,7 +170,8 @@ function removeBg(cvs) {
     }
     ctx.putImageData(id, 0, 0);
   } catch (e) {
-    console.warn('[TileRenderer] bg removal failed:', e.message);
+    // Canvas may be tainted (cross-origin) — continue without bg removal
+    console.warn('[TileRenderer] bg removal skipped (tainted canvas):', e.message);
   }
 }
 
@@ -190,8 +198,16 @@ async function prebuildSprites(file) {
       const sy = row * PT_TILE_H + margin;
 
       ctx.drawImage(img, sx, sy, srcW - margin * 2, srcH - margin * 2, 0, 0, srcW - margin * 2, srcH - margin * 2);
-      removeBg(cvs);
-      spriteCache[key] = cvs;
+
+      // Try bg removal, but if canvas becomes tainted (cross-origin), just use as-is
+      let bgRemoved = false;
+      try {
+        removeBg(cvs);
+        bgRemoved = true;
+      } catch (e) {
+        console.warn('[TileRenderer] bg removal skipped for', key, e.message);
+      }
+      spriteCache[key] = { canvas: cvs, bgRemoved };
     }
   }
 }
@@ -616,7 +632,9 @@ export default function useTileRenderer() {
     const info = TILE_MAP[plantId];
     if (!info) return null;
     const si = Math.min(Math.max(stageIdx, 0), PT_COLS - 1);
-    return spriteCache[`${info.file}-${info.row}-${si}`] || null;
+    const cached = spriteCache[`${info.file}-${info.row}-${si}`];
+    if (!cached) return null;
+    return cached.canvas || cached;
   }, []);
 
   const calcStage = useCallback((plantedDate, daysToMaturity) => {
