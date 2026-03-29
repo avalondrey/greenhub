@@ -1,0 +1,29 @@
+// fix-tile-renderer.cjs — Corrige useTileRenderer.js
+// Le fichier sur GitHub est sur 1 seule ligne → casse Vercel/Rollup
+// Ce script remplace le fichier par la version correcte
+//
+// USAGE:
+//   cd C:\Users\Administrateur\Desktop\GreenHub
+//   node fix-tile-renderer.cjs
+//
+const fs = require('fs');
+const path = require('path');
+
+const filePath = path.join(__dirname, 'src', 'hooks', 'useTileRenderer.js');
+
+if (!fs.existsSync(filePath)) {
+  console.error('ERREUR: Fichier non trouve a', filePath);
+  console.error('Executez ce script depuis le dossier GreenHub!');
+  process.exit(1);
+}
+
+const content = fs.readFileSync(filePath, 'utf8');
+const lineCount = (content.match(/\n/g) || []).length;
+console.log('Fichier actuel:', content.length, 'caracteres,', lineCount, 'lignes');
+
+if (lineCount > 50) {
+  console.log('Le fichier a deja des retours a la ligne. Rien a corriger.');
+  process.exit(0);
+}
+
+const b64Data = '
