@@ -970,7 +970,7 @@ function SowingScreen({ serres, onAddSerre, onSow }) {
     <div>
       <div onClick={() => setStep(0)} style={S.back}>← Retour</div>
       <div style={{ padding: 12, background: plant.color + '15', border: `1px solid ${plant.color}40`, borderRadius: 10, marginBottom: 14 }}>
-        <div style={{ fontSize: 10, color: plant.color, fontWeight: 700, marginBottom: 3 }}>💡 Conseil IA — {plant.name} {plant.variety}</div>
+        <div style={{ fontSize: 10, color: plant.color, fontWeight: 700, marginBottom: 3 }}>💡 Conseil IA — {plant.name}</div>
         <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.65)', lineHeight: 1.5 }}>{plant.sowing_tip}</div>
       </div>
       <div style={S.label}>Combien d'alvéoles ?</div>
@@ -1147,7 +1147,7 @@ function SerreScreen({ serres, onAddSerre, onTransplant, onRemoveSerreSeed, onMo
                 <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 8 }}>
                   <span style={{ fontSize: 28, transform: `scale(${stage.scale})`, display: 'inline-block', filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.3))' }}>{stage.emoji}</span>
                   <div>
-                    <div style={{ fontSize: 13, fontWeight: 700, color: '#fff' }}>{plant.name} {plant.variety}</div>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: '#fff' }}>{plant.name}</div>
                     <div style={{ fontSize: 11, color: plant.color }}>{dbPlant.family} · J+{daysSinceSow} · {dbPlant.daysToMaturity}j → récolte</div>
                   </div>
                 </div>
@@ -1960,7 +1960,7 @@ function GameScreen({ score, level, streak, badges, totalPlants, totalYield, onC
             <div>
               <div style={{ textAlign: 'center', marginBottom: 16 }}>
                 <div style={{ fontSize: 40, marginBottom: 8 }}>{quizPlant.plant.icon}</div>
-                <div style={{ fontSize: 15, fontWeight: 600 }}>{quizPlant.plant.name} {quizPlant.plant.variety}</div>
+                <div style={{ fontSize: 15, fontWeight: 600 }}>{quizPlant.plant.name}</div>
                 <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.5)' }}>Quelle plante est son COMPAGNON ?</div>
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
