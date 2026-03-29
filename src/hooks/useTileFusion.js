@@ -239,27 +239,24 @@ function _build() {
         const drawW = bw * (0.45 + scale * 0.35);
         const drawH = drawW * 0.85;
 
-        // Zone sprite au-dessus du terrain (selon stade)
-        const spriteH = Math.round(drawH * (col === 0 ? 0.5 : 0.75) + 8);
-        const fW = bw + OUTLINE_WIDTH * 2;
-        const fH = spriteH + bh + OUTLINE_WIDTH * 2;
+        // Canvas assez grand pour contenir sprite + terrain (pas de débordement)
+        const sprDrawW = drawW + OUTLINE_WIDTH * 2;
+        const sprDrawH = drawH + OUTLINE_WIDTH * 2;
+        const fW = Math.max(bw, sprDrawW) + OUTLINE_WIDTH * 2;
+        const fH = sprDrawH + bh + OUTLINE_WIDTH * 2;
 
         const fCvs = document.createElement('canvas');
         const fCtx = fCvs.getContext('2d');
         fCvs.width = fW; fCvs.height = fH;
         fCtx.imageSmoothingEnabled = false;
 
-        // Position terrain en bas
-        const terrainOffsetX = OUTLINE_WIDTH;
-        const terrainOffsetY = spriteH + OUTLINE_WIDTH;
-
-        // Terrain en bas
+        // Terrain centré dans le canvas
+        const terrainOffsetX = (fW - bw) / 2;
+        const terrainOffsetY = sprDrawH + OUTLINE_WIDTH;
         fCtx.drawImage(tClean, terrainOffsetX, terrainOffsetY, bw, bh);
 
-        // Position et taille du sprite dessiné
-        const sprDrawW = drawW + OUTLINE_WIDTH * 2;
-        const sprDrawH = drawH + OUTLINE_WIDTH * 2;
-        const sprX = terrainOffsetX + (bw - sprDrawW) / 2;
+        // Sprite centré dans le canvas
+        const sprX = (fW - sprDrawW) / 2;
         const sprY = col === 0
           ? terrainOffsetY + bh * diamondTopRatio - drawH * 0.3 - OUTLINE_WIDTH
           : terrainOffsetY + bh * diamondTopRatio - drawH * 0.8 - OUTLINE_WIDTH;
