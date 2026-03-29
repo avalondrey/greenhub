@@ -514,7 +514,7 @@ function drawPlantFromTileset(ctx, x, y, spriteCanvas, stageIdx, opts = {}) {
   // Ancre du sprite = BAS de la plante
   // Stade 0 (graine): légèrement enfoncé dans la terre
   // Autres stades: sort de la surface du dirt
-  const spriteBottom = isInDirt ? dirtSurfaceY + 2 : dirtSurfaceY - 25;
+  const spriteBottom = isInDirt ? dirtSurfaceY + 2 : dirtSurfaceY - 35;
   const sprX = anchorX - drawW / 2;
   const sprY = spriteBottom - drawH;
 
