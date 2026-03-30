@@ -302,14 +302,6 @@ function drawPlant(ctx, x, y, sprite, stageIdx, opts = {}) {
     ctx.beginPath(); ctx.roundRect(bx,by,bw*((stageIdx+1)/PNG_COLS),bh,1); ctx.fill();
   }
 
-  // Badge PRÊTE stade 4
-  if (stageIdx === 4) {
-    const badgeY = sprY - 10;
-    ctx.fillStyle='#e63946'; ctx.beginPath(); ctx.roundRect(cx-14, badgeY, 28, 10, 2); ctx.fill();
-    ctx.fillStyle='#fff'; ctx.font='bold 6px monospace';
-    ctx.textAlign='center'; ctx.textBaseline='middle';
-    ctx.fillText('PRÊTE!', cx, badgeY+5);
-  }
 }
 
 // ─── DRAW: VIDE / FALLBACK ────────────────────────────────────────────────────
