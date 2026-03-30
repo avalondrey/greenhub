@@ -81,8 +81,8 @@ const TILE_MAP = {
 };
 
 // ─── STAGE VISUAL CONFIG ────────────────────────────────────────────────────
-// Échelles ×3 pour tilesets HD (upscalés avec Real-ESRGAN/Upscayl)
-const STAGE_SCALES = [1.2, 2.16, 2.25, 2.85, 3.45];
+// Échelles ajustées pour tilesets HD (plus grandes mais contenues)
+const STAGE_SCALES = [0.6, 1.0, 1.4, 1.8, 2.2];
 
 // ─── SIMPLE SEEDED RANDOM (pour variantes de texture par cellule) ───────────
 function seededRandom(seed) {
@@ -259,8 +259,8 @@ export function calcGridLayout() {
   const minY = Math.min(...allPos.map(p => p.y));
   const maxY = Math.max(...allPos.map(p => p.y)) + TILE_H + TILE_D;
 
-  // Add space for tall plants (stage 4 = biggest) — ×3 pour sprites HD
-  const plantHeadroom = 330;
+  // Add space for tall plants (stage 4 = biggest)
+  const plantHeadroom = 200;
 
   const padX = 40, padTop = 80 + plantHeadroom, padBot = 30;
   return {
@@ -513,12 +513,12 @@ function drawPlantFromTileset(ctx, x, y, spriteCanvas, stageIdx, opts = {}) {
 
   // Ancre du sprite = BAS de la plante
   // Stade 0 (graine): légèrement enfoncé dans la terre
-  // Autres stades: sort de la surface du dirt (offsets ×3 pour sprites HD)
+  // Autres stades: sort de la surface du dirt
   const spriteBottom = isInDirt
-    ? dirtSurfaceY + 6
+    ? dirtSurfaceY + 2
     : stageIdx === 1
-      ? dirtSurfaceY - 60  // levée: -60px (×3)
-      : dirtSurfaceY - 90; // plante: -90px (×3)
+      ? dirtSurfaceY - 15  // levée
+      : dirtSurfaceY - 25; // plante adulte
   const sprX = anchorX - drawW / 2;
   const sprY = spriteBottom - drawH;
 
