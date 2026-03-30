@@ -22,7 +22,11 @@
       "Bash(git reset:*)",
       "Bash(git ls-tree:*)",
       "Bash(ls -la public/tileset/stades-serre/*.jpg)",
-      "Bash(cd:*)"
+      "Bash(cd:*)",
+      "Bash(identify /c/Users/Administrateur/Desktop/GreenHub/public/tileset/miniserve/tomates.png)",
+      "Bash(ls -la public/tileset/miniserre/*.png)",
+      "Bash(dir publictilesetminiserre*.png)",
+      "Bash(npm list:*)"
     ]
   }
 }

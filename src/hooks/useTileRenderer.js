@@ -81,8 +81,8 @@ const TILE_MAP = {
 };
 
 // ─── STAGE VISUAL CONFIG ────────────────────────────────────────────────────
-// Échelles ajustées pour tilesets HD (plus grandes mais contenues)
-const STAGE_SCALES = [0.6, 1.0, 1.4, 1.8, 2.2];
+// Échelles pour sprites réalistes générés (stades 0-3 agrandis)
+const STAGE_SCALES = [0.55, 0.9, 1.3, 1.65, 1.9];
 
 // ─── SIMPLE SEEDED RANDOM (pour variantes de texture par cellule) ───────────
 function seededRandom(seed) {
