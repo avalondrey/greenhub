@@ -15,9 +15,9 @@ import { PLANTS_DB } from '../db/plants.js';
 // ─── GRID CONSTANTS ──────────────────────────────────────────────────────────
 export const GRID_COLS = 4;
 export const GRID_ROWS = 6;
-const TILE_W = 100;   // isometric diamond width
-const TILE_H = 50;    // diamond height (top face)
-const TILE_D = 18;    // side face depth (réduit pour blocs plus fins)
+export const TILE_W = 100;   // isometric diamond width
+export const TILE_H = 50;    // diamond height (top face)
+export const TILE_D = 18;    // side face depth (réduit pour blocs plus fins)
 
 // ─── TILESET CONFIG ──────────────────────────────────────────────────────────
 // Fichiers miniserre pré-découpés avec fond transparent
@@ -81,7 +81,8 @@ const TILE_MAP = {
 };
 
 // ─── STAGE VISUAL CONFIG ────────────────────────────────────────────────────
-const STAGE_SCALES = [0.4, 0.72, 0.75, 0.95, 1.15];
+// Échelles ×3 pour tilesets HD (upscalés avec Real-ESRGAN/Upscayl)
+const STAGE_SCALES = [1.2, 2.16, 2.25, 2.85, 3.45];
 
 // ─── SIMPLE SEEDED RANDOM (pour variantes de texture par cellule) ───────────
 function seededRandom(seed) {
@@ -214,7 +215,7 @@ async function prebuildSprites(file) {
 }
 
 // ─── ISO MATH ────────────────────────────────────────────────────────────────
-function isoToScreen(c, r) {
+export function isoToScreen(c, r) {
   return {
     x: (c - r) * (TILE_W / 2),
     y: (c + r) * (TILE_H / 2),
@@ -247,7 +248,7 @@ function screenToCell(px, py, ox, oy) {
 }
 
 // ─── GRID LAYOUT ────────────────────────────────────────────────────────────
-function calcGridLayout() {
+export function calcGridLayout() {
   const allPos = [];
   for (let r = 0; r < GRID_ROWS; r++)
     for (let c = 0; c < GRID_COLS; c++)
@@ -258,8 +259,8 @@ function calcGridLayout() {
   const minY = Math.min(...allPos.map(p => p.y));
   const maxY = Math.max(...allPos.map(p => p.y)) + TILE_H + TILE_D;
 
-  // Add space for tall plants (stage 4 = biggest)
-  const plantHeadroom = 110;
+  // Add space for tall plants (stage 4 = biggest) — ×3 pour sprites HD
+  const plantHeadroom = 330;
 
   const padX = 40, padTop = 80 + plantHeadroom, padBot = 30;
   return {
@@ -494,9 +495,8 @@ function drawPlantFromTileset(ctx, x, y, spriteCanvas, stageIdx, opts = {}) {
   const srcW = spriteCanvas.width;
   const srcH = spriteCanvas.height;
 
-  // Taille d'affichage : proportionnelle au stade, limité pour éviter débordement
-  const maxDrawW = TILE_W * 0.75;
-  const drawW = Math.min(TILE_W * (0.5 + scale * 0.35), maxDrawW);
+  // Taille d'affichage : proportionnelle au stade (sprites HD ×3)
+  const drawW = TILE_W * (0.5 + scale * 0.35);
   const drawH = drawW * (srcH / srcW);
 
   // Position : ancre au BAS du sprite = surface du dirt
@@ -513,12 +513,12 @@ function drawPlantFromTileset(ctx, x, y, spriteCanvas, stageIdx, opts = {}) {
 
   // Ancre du sprite = BAS de la plante
   // Stade 0 (graine): légèrement enfoncé dans la terre
-  // Autres stades: sort de la surface du dirt
+  // Autres stades: sort de la surface du dirt (offsets ×3 pour sprites HD)
   const spriteBottom = isInDirt
-    ? dirtSurfaceY + 2
+    ? dirtSurfaceY + 6
     : stageIdx === 1
-      ? dirtSurfaceY - 20  // levée: -20px
-      : dirtSurfaceY - 30;
+      ? dirtSurfaceY - 60  // levée: -60px (×3)
+      : dirtSurfaceY - 90; // plante: -90px (×3)
   const sprX = anchorX - drawW / 2;
   const sprY = spriteBottom - drawH;
 
