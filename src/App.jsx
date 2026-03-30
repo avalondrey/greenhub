@@ -116,6 +116,15 @@ const TILESET_GROWTH = [
   { name: 'prête',       emoji: '🪴', scale: 1.15, opacity: 1.0 },
 ];
 
+// ── GET GROWTH STAGE ─────────────────────────────────────────────────────────
+function getGrowthStage(plantedDate, daysToMaturity) {
+  if (!plantedDate) return GROWTH_STAGES[0];
+  const days = (Date.now() - new Date(plantedDate).getTime()) / (1000 * 60 * 60 * 24);
+  const progress = Math.min(days / daysToMaturity, 1);
+  const idx = Math.min(Math.floor(progress * (GROWTH_STAGES.length - 1)), GROWTH_STAGES.length - 1);
+  return GROWTH_STAGES[idx];
+}
+
 
 // ─── Animation d'horloge temps réel ──────────────────────────────────────────
 function useRealtimeGrowth() {
