@@ -81,8 +81,8 @@ const TILE_MAP = {
 };
 
 // ─── STAGE VISUAL CONFIG ────────────────────────────────────────────────────
-// Échelles pour sprites réalistes générés (stades 0-3 agrandis)
-const STAGE_SCALES = [0.55, 0.9, 1.3, 1.65, 1.9];
+// Échelles ajustées: stades 0-1 plus gros, stades 3-4 plus petits
+const STAGE_SCALES = [0.75, 1.0, 1.3, 1.55, 1.75];
 
 // ─── SIMPLE SEEDED RANDOM (pour variantes de texture par cellule) ───────────
 function seededRandom(seed) {
