@@ -458,6 +458,17 @@ function GardenRealScreen({ permanentPlants, onAddPermanent, onUpdatePlants, onR
   const [selectedObj, setSelectedObj] = useState(null);
   const [showAddPanel, setShowAddPanel] = useState(true);
   const [hoveredCell, setHoveredCell] = useState(null);
+  const [showShadows, setShowShadows] = useState(true); // Toggle ombres
+  const [sunAngle, setSunAngle] = useState(45); // Angle soleil (0-360)
+  const [photos, setPhotos] = useState(() => {
+    // Charger photos depuis localStorage
+    try {
+      return JSON.parse(localStorage.getItem('greenhub_photos')) || {};
+    } catch {
+      return {};
+    }
+  });
+  
   const { canvasRef, render, ready, layout, GARDEN_GRID_COLS, GARDEN_GRID_ROWS } = useRealGardenRenderer();
 
   const categories = [
@@ -469,12 +480,68 @@ function GardenRealScreen({ permanentPlants, onAddPermanent, onUpdatePlants, onR
     { id: 'structures', label: '🏠 Structures', items: GARDEN_OBJECTS_DB.structures },
   ];
 
-  // Render loop
+  // Sauvegarder photos
+  useEffect(() => {
+    localStorage.setItem('greenhub_photos', JSON.stringify(photos));
+  }, [photos]);
+
+  // Render avec ombres
   useEffect(() => {
     if (!ready) return;
     const canvas = canvasRef.current;
-    render(canvas, permanentPlants, selectedObj, hoveredCell);
-  }, [ready, render, permanentPlants, selectedObj, hoveredCell]);
+    if (canvas) {
+      // Dessiner d'abord le jardin
+      render(canvas, permanentPlants, selectedObj, hoveredCell);
+      
+      // Ajouter les ombres si activé
+      if (showShadows) {
+        addShadowsToCanvas(canvas, permanentPlants, sunAngle);
+      }
+    }
+  }, [ready, render, permanentPlants, selectedObj, hoveredCell, showShadows, sunAngle]);
+
+  // Fonction pour ajouter les ombres sur le canvas
+  const addShadowsToCanvas = (canvas, plants, angle) => {
+    const ctx = canvas.getContext('2d');
+    const rad = (angle * Math.PI) / 180;
+    const shadowLength = 60; // Longueur ombre
+    
+    plants.forEach(plant => {
+      if (!plant.position) return;
+      // Seuls les grands arbres/fruitiers projettent des ombres
+      if (!['tree', 'fruit_tree'].includes(plant.type)) return;
+      
+      const { x, y } = isoXY(plant.position.col, plant.position.row);
+      const shadowX = x + Math.cos(rad) * shadowLength;
+      const shadowY = y + Math.sin(rad) * shadowLength * 0.5;
+      
+      ctx.save();
+      ctx.globalAlpha = 0.2;
+      ctx.fillStyle = '#000';
+      ctx.beginPath();
+      ctx.ellipse(
+        (x + shadowX) / 2 + layout.ox, 
+        (y + shadowY) / 2 + layout.oy, 
+        30, 15, rad, 0, Math.PI * 2
+      );
+      ctx.fill();
+      ctx.restore();
+    });
+  };
+
+  // Ajouter une photo
+  const addPhoto = (plantUid, file) => {
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      const base64 = reader.result;
+      const timestamp = Date.now();
+      setPhotos(prev => ({
+        ...prev,
+        [plantUid]: [...(prev[plantUid] || []), { id: uid(), data: base64, date: timestamp }]
+      }));
+    };
+    reader.readAsDataURL(file);
+  };
 
   const handleAddObject = (obj) => {
     // Trouver une cellule vide
@@ -641,6 +708,42 @@ function GardenRealScreen({ permanentPlants, onAddPermanent, onUpdatePlants, onR
         </div>
       )}
 
+      {/* Contrôles ombres */}
+      <div style={{ marginBottom: 8, display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+        <div 
+          onClick={() => setShowShadows(!showShadows)}
+          style={{ 
+            padding: '6px 12px', 
+            borderRadius: 6, 
+            background: showShadows ? 'rgba(46,204,113,0.2)' : 'rgba(255,255,255,0.1)', 
+            border: `1px solid ${showShadows ? '#2ecc71' : 'rgba(255,255,255,0.2)'}`,
+            color: showShadows ? '#2ecc71' : '#fff',
+            fontSize: 11,
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 6
+          }}
+        >
+          {showShadows ? '☀️' : '🌑'} Ombres {showShadows ? 'ON' : 'OFF'}
+        </div>
+        
+        {showShadows && (
+          <>
+            <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.5)' }}>☀️ Position soleil:</div>
+            <input 
+              type="range" 
+              min="0" 
+              max="360" 
+              value={sunAngle} 
+              onChange={(e) => setSunAngle(parseInt(e.target.value))}
+              style={{ width: 100 }}
+            />
+            <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.4)', width: 30 }}>{sunAngle}°</span>
+          </>
+        )}
+      </div>
+
       {/* Vue Canvas du jardin */}
       <div style={{
         position: 'relative',
@@ -713,6 +816,70 @@ function GardenRealScreen({ permanentPlants, onAddPermanent, onUpdatePlants, onR
             </div>
             <div onClick={() => setSelectedObj(null)} style={{ flex: 1, padding: '8px 0', borderRadius: 8, textAlign: 'center', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', color: 'rgba(255,255,255,0.6)', fontSize: 12, cursor: 'pointer', fontWeight: 600 }}>
               ✕ Fermer
+            </div>
+          </div>
+          
+          {/* Photos Timeline */}
+          <div style={{ marginTop: 12, paddingTop: 12, borderTop: '1px solid rgba(255,255,255,0.1)' }}>
+            <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.5)', marginBottom: 8, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span>📸 Photos ({(photos[selectedObject.uid] || []).length})</span>
+              <label style={{ cursor: 'pointer', padding: '4px 8px', background: 'rgba(46,204,113,0.2)', borderRadius: 4, fontSize: 10, color: '#2ecc71' }}>
+                + Ajouter
+                <input 
+                  type="file" 
+                  accept="image/*" 
+                  style={{ display: 'none' }} 
+                  onChange={(e) => {
+                    if (e.target.files[0]) {
+                      addPhoto(selectedObject.uid, e.target.files[0]);
+                    }
+                  }}
+                />
+              </label>
+            </div>
+            
+            <div style={{ display: 'flex', gap: 8, overflowX: 'auto', paddingBottom: 4 }}>
+              {(photos[selectedObject.uid] || []).map(photo => (
+                <div key={photo.id} style={{ position: 'relative', flexShrink: 0 }}>
+                  <img 
+                    src={photo.data} 
+                    alt="Plant" 
+                    style={{ width: 80, height: 80, objectFit: 'cover', borderRadius: 8, border: '1px solid rgba(255,255,255,0.2)' }}
+                  />
+                  <div 
+                    onClick={() => setPhotos(prev => ({
+                      ...prev, 
+                      [selectedObject.uid]: prev[selectedObject.uid].filter(p => p.id !== photo.id)
+                    }))}
+                    style={{ 
+                      position: 'absolute', 
+                      top: -4, 
+                      right: -4, 
+                      width: 18, 
+                      height: 18, 
+                      borderRadius: '50%', 
+                      background: '#ef4444', 
+                      color: '#fff', 
+                      fontSize: 10, 
+                      display: 'flex', 
+                      alignItems: 'center', 
+                      justifyContent: 'center',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    ✕
+                  </div>
+                  <div style={{ fontSize: 9, color: 'rgba(255,255,255,0.4)', marginTop: 2 }}>
+                    {new Date(photo.date).toLocaleDateString()}
+                  </div>
+                </div>
+              ))}
+              
+              {(photos[selectedObject.uid] || []).length === 0 && (
+                <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.3)', fontStyle: 'italic' }}>
+                  Aucune photo - Cliquez sur + pour ajouter
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -1082,6 +1249,10 @@ export default function App() {
   const [showGame, setShowGame] = useState(false);
   const [showEncyclopedia, setShowEncyclopedia] = useState(false);
   const [showAdmin, setShowAdmin] = useState(false);
+  
+  // États météo
+  const [weather, setWeather] = useState(null);
+  const [weatherAlerts, setWeatherAlerts] = useState([]);
 
   const showToast = (msg, type = 'success') => { setToast({ msg, type }); setTimeout(() => setToast(null), 3000); };
 
@@ -1106,6 +1277,66 @@ export default function App() {
   useEffect(() => {
     localStorage.setItem('greenhub-state', JSON.stringify({ serres, gardenGrid, permanentPlants, score, level, streak, badges }));
   }, [serres, gardenGrid, permanentPlants, score, level, streak, badges]);
+  
+  // Récupérer météo et alertes
+  useEffect(() => {
+    // Position par défaut (Paris)
+    const lat = 48.8566;
+    const lon = 2.3522;
+    
+    fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,relative_humidity_2m,is_day,precipitation,rain,showers,snowfall&daily=temperature_2m_max,temperature_2m_min,precipitation_sum,windspeed_10m_max&timezone=Europe/Paris`)
+      .then(r => r.json())
+      .then(data => {
+        setWeather(data);
+        analyzeWeather(data);
+      })
+      .catch(() => console.log('Météo indisponible'));
+      
+    // Rafraîchir toutes les 30 minutes
+    const interval = setInterval(() => {
+      fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,relative_humidity_2m,is_day,precipitation,rain,showers,snowfall&daily=temperature_2m_max,temperature_2m_min,precipitation_sum,windspeed_10m_max&timezone=Europe/Paris`)
+        .then(r => r.json())
+        .then(data => {
+          setWeather(data);
+          analyzeWeather(data);
+        })
+        .catch(() => {});
+    }, 30 * 60 * 1000);
+    
+    return () => clearInterval(interval);
+  }, []);
+  
+  // Analyser données météo pour créer alertes
+  const analyzeWeather = (data) => {
+    const alerts = [];
+    const current = data.current;
+    const daily = data.daily;
+    
+    if (!current) return;
+    
+    // Température
+    if (current.temperature_2m > 30) {
+      alerts.push({ type: 'warning', icon: '🌡️', msg: `Canicule! ${current.temperature_2m}°C - Arrosez ce soir` });
+    } else if (current.temperature_2m < 2) {
+      alerts.push({ type: 'error', icon: '❄️', msg: `Gel! ${current.temperature_2m}°C - Protection nécessaire` });
+    }
+    
+    // Pluie
+    if (daily?.precipitation_sum?.[0] > 20) {
+      alerts.push({ type: 'info', icon: '🌧️', msg: `Fortes pluies prévues (${daily.precipitation_sum[0]}mm) - Ne pas arroser` });
+    } else if (current.precipitation > 0) {
+      alerts.push({ type: 'info', icon: '💧', msg: 'Il pleut - Pause arrosage' });
+    } else if (current.relative_humidity_2m < 40 && current.temperature_2m > 25) {
+      alerts.push({ type: 'warning', icon: '💧', msg: 'Air sec et chaud - Arrosage conseillé' });
+    }
+    
+    // Vent
+    if (daily?.windspeed_10m_max?.[0] > 50) {
+      alerts.push({ type: 'warning', icon: '💨', msg: `Vent fort (${daily.windspeed_10m_max[0]}km/h) - Tuteures à vérifier` });
+    }
+    
+    setWeatherAlerts(alerts);
+  };
 
   const addSerre = (name) => {
     setSerres(s => [...s, { id: uid(), name, alveoles: Array(SERRE_COLS * SERRE_ROWS).fill(null), alveoleData: {} }]);
@@ -1247,7 +1478,14 @@ export default function App() {
           <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.3)', marginTop: 1 }}>Mon Jardin Intelligent · {PLANTS_DB.length}+ plantes</div>
         </div>
         <div style={{ textAlign: 'right' }}>
-          <div style={{ fontSize: 20, fontWeight: 700, color: '#2ecc71' }}>{score} pts</div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12, justifyContent: 'flex-end' }}>
+            {weather?.current && (
+              <div style={{ fontSize: 14, color: 'rgba(255,255,255,0.6)' }}>
+                {weather.current.temperature_2m}° {weather.current.is_day ? '☀️' : '🌙'}
+              </div>
+            )}
+            <div style={{ fontSize: 20, fontWeight: 700, color: '#2ecc71' }}>{score} pts</div>
+          </div>
           <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.3)' }}>🏠 {totalAlv} alvéoles · 🌍 {totalGarden} au jardin · {totalYield.toFixed(1)}kg est.</div>
           <div onClick={() => setShowAdmin(true)} style={{ fontSize: 10, color: '#e74c3c', cursor: 'pointer', marginTop: 4, fontWeight: 600 }}>🔧 Admin</div>
         </div>
@@ -1259,6 +1497,42 @@ export default function App() {
           <div key={id} onClick={() => { setTab(id); if (id === 'game') setShowGame(true); if (id === 'encyclopedia') setShowEncyclopedia(true); }} style={{ flex: 1, textAlign: 'center', padding: '9px 0', borderRadius: 10, cursor: 'pointer', fontSize: 11, background: tab === id ? 'rgba(46,204,113,0.15)' : 'rgba(255,255,255,0.03)', border: `1px solid ${tab === id ? '#2ecc7160' : 'rgba(255,255,255,0.06)'}`, color: tab === id ? '#2ecc71' : 'rgba(255,255,255,0.4)', fontWeight: tab === id ? 600 : 400, transition: 'all 0.2s' }}>{label}</div>
         ))}
       </div>
+
+      {/* Alertes Météo */}
+      {weatherAlerts.length > 0 && (
+        <div style={{ margin: '10px 20px 0' }}>
+          {weatherAlerts.map((alert, idx) => (
+            <div 
+              key={idx} 
+              style={{ 
+                marginBottom: 6, 
+                padding: '10px 14px', 
+                borderRadius: 8, 
+                fontSize: 12,
+                display: 'flex',
+                alignItems: 'center',
+                gap: 8,
+                border: '1px solid',
+                ...(alert.type === 'error' 
+                  ? { background: 'rgba(239,68,68,0.15)', borderColor: 'rgba(239,68,68,0.4)', color: '#fca5a5' }
+                  : alert.type === 'warning'
+                  ? { background: 'rgba(234,179,8,0.15)', borderColor: 'rgba(234,179,8,0.4)', color: '#fde047' }
+                  : { background: 'rgba(59,130,246,0.15)', borderColor: 'rgba(59,130,246,0.4)', color: '#93c5fd' }
+                )
+              }}
+            >
+              <span>{alert.icon}</span>
+              <span style={{ flex: 1 }}>{alert.msg}</span>
+              <span 
+                onClick={() => setWeatherAlerts(prev => prev.filter((_, i) => i !== idx))}
+                style={{ cursor: 'pointer', opacity: 0.6 }}
+              >
+                ✕
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
 
       <div style={{ padding: '14px 20px 0' }}>
         {tab === 'serres' && <SerreScreen serres={serres} onAddSerre={addSerre} onTransplant={handleTransplant} onRemoveSerreSeed={handleRemoveSerreSeed} onMoveSerreSeed={handleMoveSerreSeed} />}
