@@ -82,7 +82,7 @@ const TILE_MAP = {
 
 // ─── STAGE VISUAL CONFIG ────────────────────────────────────────────────────
 // Échelles personnalisées
-const STAGE_SCALES = [1.3, 1.0, 1.3, 1, 1.05];
+const STAGE_SCALES = [1.3, 1.1, 0.9, 1, 1.05];
 
 // ─── SIMPLE SEEDED RANDOM (pour variantes de texture par cellule) ───────────
 function seededRandom(seed) {
