@@ -1,0 +1,16 @@
+{
+  "name": "GreenHub",
+  "short_name": "GreenHub",
+  "description": "Mon Jardin Intelligent — Piloté par l'IA",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0d2018",
+  "theme_color": "#4ADE80",
+  "icons": [
+    {
+      "src": "/seedling.svg",
+      "sizes": "any",
+      "type": "image/svg+xml"
+    }
+  ]
+}

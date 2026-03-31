@@ -4,7 +4,9 @@
 
 ## 🚀 Features
 
-- 🗺️ **Dessin de jardin** — Drag & drop des plants
+- 🗺️ **Jardin Réel (Canvas)** — Rendu isométrique avec Canvas 2D
+- 🌱 **Mini-serres** — Gestion de serres avec stades de croissance
+- 🎨 **Sprites réalistes** — Tomates, légumes et herbes générés procéduralement
 - 📅 **Planning auto** — Tâches générées automatiquement
 - 🌙 **Lune + Météo** — Meilleurs jours de plantation
 - 🧮 **Calcul récoltes** — Estimations auto

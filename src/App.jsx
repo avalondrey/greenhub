@@ -1,6 +1,7 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { PLANTS_DB, PLANTS_SIMPLE, generateTasks, estimateYield } from './db/plants.js';
 import useTileRenderer from './hooks/useTileRenderer.js';
+import useRealGardenRenderer from './hooks/useRealGardenRenderer.js';
 
 // ─── GARDEN OBJECTS DATABASE ──────────────────────────────────────────────────
 // Objets du jardin réel : arbres, haies, arbustes, petits fruits, cabanons, serres
@@ -449,264 +450,15 @@ function SerreScreen({ serres, onAddSerre, onTransplant, onRemoveSerreSeed, onMo
 // Jardin voxel style Minecraft avec image isométrique en fond
 // Permet d'ajouter, déplacer et supprimer des éléments librement
 
-const ISOMETRIC_FOREST_BG = 'https://st5.depositphotos.com/2885805/69454/i/1600/depositphotos_694548908-stock-photo-isometric-forest-composition-set-sections.jpg';
+// ─── JARDIN RÉEL SCREEN — Canvas Isométrique ──────────────────────────────────
+// Remplacement du système CSS 3D par un rendu Canvas cohérent avec les mini-serres
 
-// Couleurs voxels pour les objets
-const VOXEL_COLORS = {
-  tree: { top: '#228B22', side: '#1a6b1a', dark: '#145214' },
-  fruit_tree: { top: '#DC143C', side: '#a01025', dark: '#7a0c1c' },
-  hedge: { top: '#355E3B', side: '#2a4a2f', dark: '#1f3a24' },
-  shrub: { top: '#4169E1', side: '#3456b0', dark: '#28448a' },
-  small_fruit: { top: '#9370DB', side: '#7659b8', dark: '#5c4590' },
-  shed: { top: '#8B4513', side: '#6d350f', dark: '#52280b' },
-  greenhouse: { top: '#90EE90', side: '#73bf73', dark: '#599659' },
-  pond: { top: '#4169E1', side: '#3456b0', dark: '#28448a' },
-  default: { top: '#4A7023', side: '#3a5a1c', dark: '#2d4a16' },
-};
-
-function getVoxelColors(obj) {
-  if (obj.type === 'tree' || obj.type === 'fruit_tree') return VOXEL_COLORS.tree;
-  if (obj.type === 'hedge') return VOXEL_COLORS.hedge;
-  if (obj.type === 'shrub') return VOXEL_COLORS.shrub;
-  if (obj.type === 'small_fruit') return VOXEL_COLORS.small_fruit;
-  if (obj.structureType === 'shed') return VOXEL_COLORS.shed;
-  if (obj.structureType === 'greenhouse') return VOXEL_COLORS.greenhouse;
-  if (obj.structureType === 'pond') return VOXEL_COLORS.pond;
-  return VOXEL_COLORS.default;
-}
-
-function GardenReal3D({ objects, gridSize, onSelectObject, selectedId }) {
-  const TILE = 32;
-  const ISO_D = 16; // profondeur isometrique par tuile
-
-  // Construire les objets positionnables sur grille libre
-  const gridCells = gridSize || 20;
-
-  // État local pour le dragged object
-  const [dragging, setDragging] = useState(null);
-  const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
-
-  const handlePointerDown = (e, obj) => {
-    e.stopPropagation();
-    const rect = e.currentTarget.getBoundingClientRect();
-    setDragging(obj.uid);
-    setDragOffset({ x: e.clientX - rect.left, y: e.clientY - rect.top });
-  };
-
-  const handlePointerMove = useCallback((e) => {
-    if (!dragging) return;
-    // Le deplacement est reactive via position dans l'objet
-  }, [dragging]);
-
-  const handlePointerUp = useCallback(() => {
-    setDragging(null);
-  }, [dragging]);
-
-  // Calcul de la position isometrique
-  const toIso = (col, row) => ({
-    x: 60 + col * TILE - row * TILE,
-    y: 30 + col * (TILE / 2) + row * (TILE / 2),
-  });
-
-  return (
-    <div
-      style={{
-        position: 'relative',
-        width: '100%',
-        height: 460,
-        borderRadius: 12,
-        overflow: 'hidden',
-        border: '3px solid rgba(60,90,30,0.5)',
-        boxShadow: '0 8px 32px rgba(0,0,0,0.4)',
-        cursor: dragging ? 'grabbing' : 'default',
-        userSelect: 'none',
-      }}
-      onPointerMove={handlePointerMove}
-      onPointerUp={handlePointerUp}
-    >
-      {/* Fond isometrique forêt */}
-      <div style={{
-        position: 'absolute',
-        inset: 0,
-        backgroundImage: `url(${ISOMETRIC_FOREST_BG})`,
-        backgroundSize: 'cover',
-        backgroundPosition: 'center',
-        filter: 'brightness(0.65) saturate(1.05)',
-      }} />
-
-      {/* Overlay gradient pour lisibilite */}
-      <div style={{
-        position: 'absolute',
-        inset: 0,
-        background: 'linear-gradient(180deg, rgba(0,0,0,0.2) 0%, rgba(0,0,0,0.35) 100%)',
-        pointerEvents: 'none',
-      }} />
-
-      {/* Grille isometrique de placement (subtile) */}
-      <svg
-        style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', pointerEvents: 'none' }}
-        viewBox="0 0 800 500"
-        preserveAspectRatio="xMidYMid meet"
-      >
-        {/* Lignes iso horizontales */}
-        {Array.from({ length: gridCells / 2 }, (_, i) => {
-          const start = toIso(0, i * 2);
-          const end = toIso(gridCells, i * 2);
-          return (
-            <line key={`h${i}`} x1={start.x} y1={start.y} x2={end.x} y2={end.y}
-              stroke="rgba(255,255,255,0.04)" strokeWidth="1" />
-          );
-        })}
-        {/* Lignes iso verticales */}
-        {Array.from({ length: gridCells / 2 }, (_, i) => {
-          const start = toIso(i * 2, 0);
-          const end = toIso(i * 2, gridCells);
-          return (
-            <line key={`v${i}`} x1={start.x} y1={start.y} x2={end.x} y2={end.y}
-              stroke="rgba(255,255,255,0.04)" strokeWidth="1" />
-          );
-        })}
-      </svg>
-
-      {/* Objets voxel */}
-      {objects.map((obj) => {
-        const pos = toIso(obj.position.col, obj.position.row);
-        const colors = getVoxelColors(obj);
-        const size = obj.spanCells || 1;
-        const isSelected = selectedId === obj.uid;
-        const isDragging = dragging === obj.uid;
-        const voxelSize = size * TILE * 0.45;
-        const voxelH = size * TILE * 0.55;
-
-        return (
-          <div
-            key={obj.uid}
-            onPointerDown={(e) => handlePointerDown(e, obj)}
-            onClick={(e) => { if (!isDragging) onSelectObject(obj.uid); }}
-            style={{
-              position: 'absolute',
-              left: pos.x,
-              top: pos.y,
-              width: voxelSize * 2,
-              height: voxelSize + voxelH,
-              cursor: isDragging ? 'grabbing' : 'grab',
-              transform: isSelected ? 'scale(1.08)' : isDragging ? 'scale(1.12)' : 'scale(1)',
-              transition: isDragging ? 'none' : 'transform 0.15s ease',
-              filter: isSelected
-                ? `drop-shadow(0 0 16px rgba(46,204,113,0.9))`
-                : isDragging
-                ? `drop-shadow(0 4px 12px rgba(0,0,0,0.5))`
-                : `drop-shadow(0 2px 6px rgba(0,0,0,0.4))`,
-              zIndex: isDragging ? 100 : isSelected ? 50 : 10,
-              pointerEvents: 'auto',
-            }}
-          >
-            {/* Cube voxel - face top (losange) */}
-            <div style={{
-              position: 'absolute',
-              top: 0,
-              left: '50%',
-              transform: 'translateX(-50%) rotateX(60deg) rotateZ(45deg)',
-              width: voxelSize,
-              height: voxelSize,
-              background: `linear-gradient(135deg, ${colors.top} 0%, ${colors.top}cc 100%)`,
-              border: '1px solid rgba(255,255,255,0.2)',
-              boxShadow: `inset 1px 1px 0 rgba(255,255,255,0.3)`,
-            }} />
-
-            {/* Cube voxel - face gauche */}
-            <div style={{
-              position: 'absolute',
-              top: voxelSize * 0.3,
-              left: 0,
-              width: voxelSize * 0.4,
-              height: voxelH,
-              background: `linear-gradient(180deg, ${colors.side} 0%, ${colors.dark} 100%)`,
-              transform: 'skewY(-30deg)',
-              transformOrigin: 'top left',
-              border: '1px solid rgba(0,0,0,0.2)',
-              borderTop: '1px solid rgba(255,255,255,0.1)',
-            }} />
-
-            {/* Cube voxel - face droite */}
-            <div style={{
-              position: 'absolute',
-              top: voxelSize * 0.3,
-              right: 0,
-              width: voxelSize * 0.4,
-              height: voxelH,
-              background: `linear-gradient(180deg, ${colors.side}cc 0%, ${colors.dark}dd 100%)`,
-              transform: 'skewY(30deg)',
-              transformOrigin: 'top right',
-              border: '1px solid rgba(0,0,0,0.3)',
-              borderTop: '1px solid rgba(255,255,255,0.05)',
-            }} />
-
-            {/* Emoji au dessus */}
-            <div style={{
-              position: 'absolute',
-              top: -voxelSize * 0.3,
-              left: '50%',
-              transform: 'translateX(-50%)',
-              fontSize: Math.max(16, voxelSize * 0.5),
-              textShadow: '0 2px 4px rgba(0,0,0,0.6)',
-              zIndex: 5,
-              pointerEvents: 'none',
-              filter: 'drop-shadow(0 1px 2px rgba(0,0,0,0.5))',
-            }}>
-              {obj.emoji}
-            </div>
-
-            {/* Indicateur de selection */}
-            {isSelected && (
-              <div style={{
-                position: 'absolute',
-                bottom: -8,
-                left: '50%',
-                transform: 'translateX(-50%)',
-                width: 10, height: 10,
-                background: '#2ecc71',
-                borderRadius: '50%',
-                border: '2px solid #fff',
-                boxShadow: '0 0 12px rgba(46,204,113,0.8)',
-              }} />
-            )}
-          </div>
-        );
-      })}
-
-      {/* Message si vide */}
-      {objects.length === 0 && (
-        <div style={{
-          position: 'absolute',
-          inset: 0,
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'center',
-          justifyContent: 'center',
-          color: 'rgba(255,255,255,0.65)',
-          fontSize: 14,
-          fontWeight: 600,
-          textShadow: '0 2px 6px rgba(0,0,0,0.6)',
-          pointerEvents: 'none',
-        }}>
-          <div style={{ fontSize: 48, marginBottom: 10 }}>🏡</div>
-          <div>Jardin Réel Voxel</div>
-          <div style={{ fontSize: 11, marginTop: 4, opacity: 0.7 }}>Ajoutez des arbres, arbustes et structures</div>
-          <div style={{ fontSize: 11, opacity: 0.5 }}>Glissez pour positionner</div>
-        </div>
-      )}
-    </div>
-  );
-}
-
-// ─── JARDIN RÉEL SCREEN ──────────────────────────────────────────────────────
-function GardenRealScreen({ permanentPlants, onAddPermanent, onRemovePermanent }) {
+function GardenRealScreen({ permanentPlants, onAddPermanent, onUpdatePlants, onRemovePermanent }) {
   const [activeCategory, setActiveCategory] = useState('fruit_trees');
   const [selectedObj, setSelectedObj] = useState(null);
   const [showAddPanel, setShowAddPanel] = useState(true);
-  const [draggingId, setDraggingId] = useState(null);
-  const gardenRef = useRef(null);
+  const [hoveredCell, setHoveredCell] = useState(null);
+  const { canvasRef, render, ready, layout, GARDEN_GRID_COLS, GARDEN_GRID_ROWS } = useRealGardenRenderer();
 
   const categories = [
     { id: 'fruit_trees', label: '🍎 Fruitiers', items: GARDEN_OBJECTS_DB.fruit_trees },
@@ -717,43 +469,128 @@ function GardenRealScreen({ permanentPlants, onAddPermanent, onRemovePermanent }
     { id: 'structures', label: '🏠 Structures', items: GARDEN_OBJECTS_DB.structures },
   ];
 
+  // Render loop
+  useEffect(() => {
+    if (!ready) return;
+    const canvas = canvasRef.current;
+    render(canvas, permanentPlants, selectedObj, hoveredCell);
+  }, [ready, render, permanentPlants, selectedObj, hoveredCell]);
+
   const handleAddObject = (obj) => {
+    // Trouver une cellule vide
+    const usedCells = new Set(
+      permanentPlants
+        .filter(p => p?.position?.row != null && p?.position?.col != null)
+        .map(p => `${p.position.row}-${p.position.col}`)
+    );
+    let placed = false;
+    let col = 2, row = 2;
+    for (let r = 2; r < GARDEN_GRID_ROWS - 2 && !placed; r++) {
+      for (let c = 2; c < GARDEN_GRID_COLS - 2 && !placed; c++) {
+        if (!usedCells.has(`${r}-${c}`)) {
+          row = r; col = c; placed = true;
+        }
+      }
+    }
+
     const newObj = {
       ...obj,
       uid: uid(),
-      position: {
-        col: Math.floor(Math.random() * 12) + 2,
-        row: Math.floor(Math.random() * 10) + 2,
-      },
+      position: { col, row },
     };
-    onAddPermanent([...permanentPlants, newObj]);
+    onAddPermanent(newObj);
     setSelectedObj(newObj.uid);
   };
 
-  const handleSelectObject = (uid) => {
-    setSelectedObj(selectedObj === uid ? null : uid);
+  const handleCanvasClick = (e) => {
+    console.log('Click canvas', e.clientX, e.clientY);
+
+    // Calcul direct de la cellule
+    const canvas = canvasRef.current;
+    if (!canvas) {
+      console.log('PAS DE CANVAS dans handleCanvasClick');
+      return;
+    }
+    const rect = canvas.getBoundingClientRect();
+    const rx = (e.clientX - rect.left) / rect.width;
+    const ry = (e.clientY - rect.top) / rect.height;
+
+    // Layout values (from hook)
+    const { W, H, ox, oy } = layout;
+    const px = rx * W;
+    const py = ry * H;
+
+    // Iso inverse
+    const rx2 = px - ox;
+    const ry2 = py - oy;
+    const col = (rx2 / 40 + ry2 / 20) / 2;  // TILE_W=80, TILE_H=40
+    const row = (ry2 / 20 - rx2 / 40) / 2;
+    // Correction du décalage
+    const tc = Math.round(col - 0.5);
+    const tr = Math.round(row - 0.5);
+
+    console.log('px/py:', px.toFixed(0), py.toFixed(0), 'col/row:', col.toFixed(1), row.toFixed(1), 'tc/tr:', tc, tr);
+
+    let cell = null;
+    if (tr >= 0 && tr < GARDEN_GRID_ROWS && tc >= 0 && tc < GARDEN_GRID_COLS) {
+      cell = { row: tr, col: tc };
+    }
+    console.log('Cell trouvée:', cell);
+    if (!cell) return;
+
+    // Log tous les objets et leurs positions
+    console.log('Tous les objets:', permanentPlants.map(p => ({ uid: p.uid, name: p.name, pos: p.position })));
+
+    // Chercher un objet à cette position
+    const objAtCell = permanentPlants.find(p =>
+      p?.position?.row === cell.row && p?.position?.col === cell.col
+    );
+    console.log('Objet à cette position:', objAtCell, 'Sélection actuelle:', selectedObj);
+
+    if (objAtCell) {
+      console.log('Sélection de:', objAtCell.uid, '(actuel:', selectedObj, ')');
+      setSelectedObj(objAtCell.uid === selectedObj ? null : objAtCell.uid);
+    } else {
+      // Déplacer l'objet sélectionné ici
+      if (selectedObj) {
+        console.log('Déplacement de', selectedObj, 'vers', cell);
+        onUpdatePlants(prev => {
+          const updated = prev.map(p =>
+            p.uid === selectedObj ? { ...p, position: { row: cell.row, col: cell.col } } : p
+          );
+          console.log('Nouvelle liste:', updated);
+          return updated;
+        });
+        // Garder l'objet sélectionné mais montrer un feedback
+        setTimeout(() => setSelectedObj(null), 300);
+      } else {
+        console.log('Pas d\'objet sélectionné');
+      }
+    }
   };
 
-  const handlePointerMove = useCallback((e) => {
-    if (!draggingId || !gardenRef.current) return;
-    const rect = gardenRef.current.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const y = e.clientY - rect.top;
-    // Conversion inverse iso approximative
-    const col = Math.round((x - 60 + y * 0.5) / 32 - 1);
-    const row = Math.round((y * 0.5 - x + 90) / 32);
-    const clampedCol = Math.max(0, Math.min(18, col));
-    const clampedRow = Math.max(0, Math.min(16, row));
-    onAddPermanent(permanentPlants.map(p => p.uid === draggingId ? { ...p, position: { col: clampedCol, row: clampedRow } } : p));
-  }, [draggingId, permanentPlants, onAddPermanent]);
-
-  const handlePointerUp = useCallback(() => {
-    setDraggingId(null);
-  }, []);
-
-  const handleObjectPointerDown = (e, uid) => {
-    e.stopPropagation();
-    setDraggingId(uid);
+  const handleCanvasMove = (e) => {
+    // Calcul direct de la cellule pour le hover
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const rect = canvas.getBoundingClientRect();
+    const rx = (e.clientX - rect.left) / rect.width;
+    const ry = (e.clientY - rect.top) / rect.height;
+    const { W, H, ox, oy } = layout;
+    const px = rx * W;
+    const py = ry * H;
+    const rx2 = px - ox;
+    const ry2 = py - oy;
+    const col = (rx2 / 40 + ry2 / 20) / 2;
+    const row = (ry2 / 20 - rx2 / 40) / 2;
+    // Correction du décalage
+    const tc = Math.round(col - 0.5);
+    const tr = Math.round(row - 0.5);
+    if (tr >= 0 && tr < GARDEN_GRID_ROWS && tc >= 0 && tc < GARDEN_GRID_COLS) {
+      setHoveredCell({ row: tr, col: tc });
+    } else {
+      setHoveredCell(null);
+    }
   };
 
   const selectedObject = permanentPlants.find(p => p.uid === selectedObj);
@@ -804,156 +641,28 @@ function GardenRealScreen({ permanentPlants, onAddPermanent, onRemovePermanent }
         </div>
       )}
 
-      {/* Vue voxel du jardin */}
-      <div
-        ref={gardenRef}
-        style={{
-          position: 'relative',
-          width: '100%',
-          height: 460,
-          borderRadius: 12,
-          overflow: 'hidden',
-          border: '3px solid rgba(60,90,30,0.5)',
-          boxShadow: '0 8px 32px rgba(0,0,0,0.4)',
-          cursor: draggingId ? 'grabbing' : 'default',
-          userSelect: 'none',
-        }}
-        onPointerMove={handlePointerMove}
-        onPointerUp={handlePointerUp}
-      >
-        {/* Fond isometrique forêt */}
-        <div style={{
-          position: 'absolute',
-          inset: 0,
-          backgroundImage: `url(${ISOMETRIC_FOREST_BG})`,
-          backgroundSize: 'cover',
-          backgroundPosition: 'center',
-          filter: 'brightness(0.65) saturate(1.05)',
-        }} />
-
-        {/* Overlay gradient pour lisibilite */}
-        <div style={{
-          position: 'absolute',
-          inset: 0,
-          background: 'linear-gradient(180deg, rgba(0,0,0,0.2) 0%, rgba(0,0,0,0.35) 100%)',
-          pointerEvents: 'none',
-        }} />
-
-        {/* Grille isometrique */}
-        <svg style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', pointerEvents: 'none' }} viewBox="0 0 800 500" preserveAspectRatio="xMidYMid meet">
-          {Array.from({ length: 10 }, (_, i) => {
-            const start = { x: 60 + i * 32, y: 30 + i * 16 };
-            const end = { x: 60 + (i + 10) * 32 - 320, y: 30 + (i + 10) * 16 };
-            return <line key={`h${i}`} x1={start.x} y1={start.y} x2={end.x} y2={end.y} stroke="rgba(255,255,255,0.05)" strokeWidth="1" />;
-          })}
-          {Array.from({ length: 10 }, (_, i) => {
-            const start = { x: 60 + i * 32, y: 30 + i * 16 };
-            const end = { x: 60 + (i - 10) * 32 + 320, y: 30 + (i - 10) * 16 };
-            return <line key={`v${i}`} x1={start.x} y1={start.y} x2={end.x} y2={end.y} stroke="rgba(255,255,255,0.05)" strokeWidth="1" />;
-          })}
-        </svg>
-
-        {/* Objets voxel */}
-        {permanentPlants.map((obj) => {
-          const TILE = 32;
-          const pos = {
-            x: 60 + obj.position.col * TILE - obj.position.row * TILE,
-            y: 30 + obj.position.col * (TILE / 2) + obj.position.row * (TILE / 2),
-          };
-          const colors = getVoxelColors(obj);
-          const size = obj.spanCells || 1;
-          const isSelected = selectedObj === obj.uid;
-          const isDragging = draggingId === obj.uid;
-          const voxelSize = size * TILE * 0.45;
-          const voxelH = size * TILE * 0.55;
-
-          return (
-            <div
-              key={obj.uid}
-              onPointerDown={(e) => handleObjectPointerDown(e, obj.uid)}
-              onClick={(e) => { if (!isDragging) handleSelectObject(obj.uid); }}
-              style={{
-                position: 'absolute',
-                left: pos.x,
-                top: pos.y,
-                width: voxelSize * 2,
-                height: voxelSize + voxelH,
-                cursor: isDragging ? 'grabbing' : 'grab',
-                transform: isSelected ? 'scale(1.08)' : isDragging ? 'scale(1.12)' : 'scale(1)',
-                transition: isDragging ? 'none' : 'transform 0.15s ease',
-                filter: isSelected ? 'drop-shadow(0 0 16px rgba(46,204,113,0.9))' : isDragging ? 'drop-shadow(0 4px 12px rgba(0,0,0,0.5))' : 'drop-shadow(0 2px 6px rgba(0,0,0,0.4))',
-                zIndex: isDragging ? 100 : isSelected ? 50 : 10,
-                pointerEvents: 'auto',
-              }}
-            >
-              {/* Cube voxel - face top */}
-              <div style={{
-                position: 'absolute',
-                top: 0,
-                left: '50%',
-                transform: 'translateX(-50%) rotateX(60deg) rotateZ(45deg)',
-                width: voxelSize,
-                height: voxelSize,
-                background: `linear-gradient(135deg, ${colors.top} 0%, ${colors.top}cc 100%)`,
-                border: '1px solid rgba(255,255,255,0.2)',
-                boxShadow: `inset 1px 1px 0 rgba(255,255,255,0.3)`,
-              }} />
-              {/* Cube voxel - face gauche */}
-              <div style={{
-                position: 'absolute',
-                top: voxelSize * 0.3,
-                left: 0,
-                width: voxelSize * 0.4,
-                height: voxelH,
-                background: `linear-gradient(180deg, ${colors.side} 0%, ${colors.dark} 100%)`,
-                transform: 'skewY(-30deg)',
-                transformOrigin: 'top left',
-                border: '1px solid rgba(0,0,0,0.2)',
-                borderTop: '1px solid rgba(255,255,255,0.1)',
-              }} />
-              {/* Cube voxel - face droite */}
-              <div style={{
-                position: 'absolute',
-                top: voxelSize * 0.3,
-                right: 0,
-                width: voxelSize * 0.4,
-                height: voxelH,
-                background: `linear-gradient(180deg, ${colors.side}cc 0%, ${colors.dark}dd 100%)`,
-                transform: 'skewY(30deg)',
-                transformOrigin: 'top right',
-                border: '1px solid rgba(0,0,0,0.3)',
-                borderTop: '1px solid rgba(255,255,255,0.05)',
-              }} />
-              {/* Emoji */}
-              <div style={{
-                position: 'absolute',
-                top: -voxelSize * 0.3,
-                left: '50%',
-                transform: 'translateX(-50%)',
-                fontSize: Math.max(16, voxelSize * 0.5),
-                textShadow: '0 2px 4px rgba(0,0,0,0.6)',
-                zIndex: 5,
-                pointerEvents: 'none',
-              }}>
-                {obj.emoji}
-              </div>
-              {/* Indicateur selection */}
-              {isSelected && (
-                <div style={{
-                  position: 'absolute',
-                  bottom: -8,
-                  left: '50%',
-                  transform: 'translateX(-50%)',
-                  width: 10, height: 10,
-                  background: '#2ecc71',
-                  borderRadius: '50%',
-                  border: '2px solid #fff',
-                  boxShadow: '0 0 12px rgba(46,204,113,0.8)',
-                }} />
-              )}
-            </div>
-          );
-        })}
+      {/* Vue Canvas du jardin */}
+      <div style={{
+        position: 'relative',
+        width: '100%',
+        minHeight: 400,
+        borderRadius: 12,
+        overflow: 'hidden',
+        border: '3px solid rgba(60,90,30,0.5)',
+        boxShadow: '0 8px 32px rgba(0,0,0,0.4)',
+        userSelect: 'none',
+      }}>
+        <canvas
+          ref={canvasRef}
+          onClick={handleCanvasClick}
+          onMouseMove={handleCanvasMove}
+          style={{
+            display: 'block',
+            width: '100%',
+            height: 400,
+            cursor: selectedObj ? 'crosshair' : 'pointer',
+          }}
+        />
 
         {/* Message si vide */}
         {permanentPlants.length === 0 && (
@@ -971,16 +680,23 @@ function GardenRealScreen({ permanentPlants, onAddPermanent, onRemovePermanent }
             pointerEvents: 'none',
           }}>
             <div style={{ fontSize: 48, marginBottom: 10 }}>🏡</div>
-            <div>Jardin Réel Voxel</div>
+            <div>Jardin Réel</div>
             <div style={{ fontSize: 11, marginTop: 4, opacity: 0.7 }}>Ajoutez des arbres, arbustes et structures</div>
-            <div style={{ fontSize: 11, opacity: 0.5 }}>Glissez pour positionner</div>
+            <div style={{ fontSize: 11, opacity: 0.5 }}>Cliquez sur une case pour placer</div>
           </div>
         )}
       </div>
 
+      {/* Message déplacement */}
+      {selectedObject && (
+        <div style={{ padding: '8px 12px', background: 'rgba(46,204,113,0.15)', border: '1px solid rgba(46,204,113,0.3)', borderRadius: 8, marginTop: 10, fontSize: 12, color: '#2ecc71', textAlign: 'center' }}>
+          ✓ {selectedObject.name} sélectionné — Cliquez sur une case vide pour déplacer
+        </div>
+      )}
+
       {/* Panneau objet sélectionné */}
       {selectedObject && (
-        <div style={{ padding: 12, background: selectedObject.color + '15', border: `1px solid ${selectedObject.color}40`, borderRadius: 10, marginTop: 10 }}>
+        <div style={{ padding: 12, background: selectedObject.color + '15', border: `1px solid ${selectedObject.color}40`, borderRadius: 10, marginTop: 8 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
             <span style={{ fontSize: 24 }}>{selectedObject.emoji}</span>
             <div>
@@ -1004,7 +720,7 @@ function GardenRealScreen({ permanentPlants, onAddPermanent, onRemovePermanent }
 
       {/* Stats */}
       <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.3)', textAlign: 'center', marginTop: 8 }}>
-        🌳 {permanentPlants.length} élément{permanentPlants.length > 1 ? 's' : ''} · Grille 20×20 voxels
+        🌳 {permanentPlants.length} élément{permanentPlants.length > 1 ? 's' : ''} · Grille {GARDEN_GRID_COLS}×{GARDEN_GRID_ROWS}
       </div>
     </div>
   );
@@ -1365,6 +1081,7 @@ export default function App() {
   const [badges, setBadges] = useState(0);
   const [showGame, setShowGame] = useState(false);
   const [showEncyclopedia, setShowEncyclopedia] = useState(false);
+  const [showAdmin, setShowAdmin] = useState(false);
 
   const showToast = (msg, type = 'success') => { setToast({ msg, type }); setTimeout(() => setToast(null), 3000); };
 
@@ -1532,20 +1249,20 @@ export default function App() {
         <div style={{ textAlign: 'right' }}>
           <div style={{ fontSize: 20, fontWeight: 700, color: '#2ecc71' }}>{score} pts</div>
           <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.3)' }}>🏠 {totalAlv} alvéoles · 🌍 {totalGarden} au jardin · {totalYield.toFixed(1)}kg est.</div>
+          <div onClick={() => setShowAdmin(true)} style={{ fontSize: 10, color: '#e74c3c', cursor: 'pointer', marginTop: 4, fontWeight: 600 }}>🔧 Admin</div>
         </div>
       </div>
 
       {/* Tabs */}
       <div style={{ display: 'flex', gap: 3, margin: '14px 20px 0' }}>
-        {[['serres', '🏠 Mini Serres'], ['jardin', '🌍 Jardin'], ['real_garden', '🏡 Jardin Réel'], ['semer', '🌱 Semer'], ['game', '⭐ Jeu']].map(([id, label]) => (
+        {[['serres', '🏠 Mini Serres'], ['real_garden', '🏡 Jardin Réel'], ['semer', '🌱 Semer'], ['game', '⭐ Jeu']].map(([id, label]) => (
           <div key={id} onClick={() => { setTab(id); if (id === 'game') setShowGame(true); if (id === 'encyclopedia') setShowEncyclopedia(true); }} style={{ flex: 1, textAlign: 'center', padding: '9px 0', borderRadius: 10, cursor: 'pointer', fontSize: 11, background: tab === id ? 'rgba(46,204,113,0.15)' : 'rgba(255,255,255,0.03)', border: `1px solid ${tab === id ? '#2ecc7160' : 'rgba(255,255,255,0.06)'}`, color: tab === id ? '#2ecc71' : 'rgba(255,255,255,0.4)', fontWeight: tab === id ? 600 : 400, transition: 'all 0.2s' }}>{label}</div>
         ))}
       </div>
 
       <div style={{ padding: '14px 20px 0' }}>
         {tab === 'serres' && <SerreScreen serres={serres} onAddSerre={addSerre} onTransplant={handleTransplant} onRemoveSerreSeed={handleRemoveSerreSeed} onMoveSerreSeed={handleMoveSerreSeed} />}
-        {tab === 'jardin' && <GardenScreen grid={gardenGrid} onMove={handleMove} gardenArea={gardenArea} />}
-        {tab === 'real_garden' && <GardenRealScreen permanentPlants={permanentPlants} onAddPermanent={(obj) => { setPermanentPlants(p => [...p, obj]); showToast(`🌳 ${obj.name} ajouté au jardin !`); }} onRemovePermanent={(uid) => { setPermanentPlants(p => p.filter(x => x.uid !== uid)); showToast('🗑️ Élément retiré'); }} />}
+        {tab === 'real_garden' && <GardenRealScreen permanentPlants={permanentPlants} onAddPermanent={(obj) => { setPermanentPlants(p => [...p, obj]); showToast(`🌳 ${obj.name} ajouté au jardin !`); }} onUpdatePlants={(updater) => setPermanentPlants(updater)} onRemovePermanent={(uid) => { setPermanentPlants(p => p.filter(x => x.uid !== uid)); showToast('🗑️ Élément retiré'); }} />}
         {tab === 'semer' && <SowingScreen serres={serres} onAddSerre={addSerre} onSow={handleSow} />}
         {tab === 'game' && <GameScreen score={score} level={level} streak={streak} badges={badges} totalPlants={totalGarden} totalYield={totalYield} onClose={() => setTab('serres')} />}
       </div>
@@ -1556,13 +1273,9 @@ export default function App() {
           <div style={{ fontSize: 20 }}>🏠</div>
           <div style={{ fontSize: 10, color: tab === 'serres' ? '#2ecc71' : 'rgba(255,255,255,0.3)' }}>Mini Serres</div>
         </div>
-        <div onClick={() => setTab('jardin')} style={{ textAlign: 'center', cursor: 'pointer' }}>
-          <div style={{ fontSize: 20 }}>🌍</div>
-          <div style={{ fontSize: 10, color: tab === 'jardin' ? '#2ecc71' : 'rgba(255,255,255,0.3)' }}>Jardin</div>
-        </div>
         <div onClick={() => setTab('real_garden')} style={{ textAlign: 'center', cursor: 'pointer' }}>
           <div style={{ fontSize: 20 }}>🏡</div>
-          <div style={{ fontSize: 10, color: tab === 'real_garden' ? '#2ecc71' : 'rgba(255,255,255,0.3)' }}>Jardin Réel</div>
+          <div style={{ fontSize: 10, color: tab === 'real_garden' ? '#2ecc71' : 'rgba(255,255,255,0.3)' }}>Jardin</div>
         </div>
         <div onClick={() => setTab('semer')} style={{ textAlign: 'center', cursor: 'pointer' }}>
           <div style={{ fontSize: 20 }}>🌱</div>
@@ -1577,6 +1290,69 @@ export default function App() {
           <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.3)' }}>Jeu</div>
         </div>
       </div>
+
+      {/* Admin Panel */}
+      {showAdmin && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.9)', backdropFilter: 'blur(8px)', zIndex: 150, padding: 20, overflowY: 'auto' }}>
+          <div style={{ maxWidth: 500, margin: '0 auto', background: '#1a1f2e', borderRadius: 16, padding: 24, border: '1px solid rgba(255,255,255,0.1)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+              <div style={{ fontSize: 18, fontWeight: 700, color: '#e74c3c' }}>🔧 Panneau Admin</div>
+              <div onClick={() => setShowAdmin(false)} style={{ fontSize: 24, cursor: 'pointer', color: 'rgba(255,255,255,0.5)' }}>×</div>
+            </div>
+
+            <div style={{ marginBottom: 20 }}>
+              <div style={{ fontSize: 14, fontWeight: 600, color: '#fff', marginBottom: 12 }}>⏰ Vieillissement des plantes</div>
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                {[1, 5, 10, 30].map(days => (
+                  <button
+                    key={days}
+                    onClick={() => {
+                      setSerres(prev => prev.map(s => {
+                        const newAlveoleData = { ...(s.alveoleData || {}) };
+                        Object.keys(newAlveoleData).forEach(idx => {
+                          if (newAlveoleData[idx]?.plantedDate) {
+                            const d = new Date(newAlveoleData[idx].plantedDate);
+                            d.setDate(d.getDate() - days);
+                            newAlveoleData[idx] = { ...newAlveoleData[idx], plantedDate: d.toISOString() };
+                          }
+                        });
+                        return { ...s, alveoleData: newAlveoleData };
+                      }));
+                      showToast(`⏰ +${days} jours ajoutés à toutes les plantes !`);
+                    }}
+                    style={{ padding: '10px 16px', borderRadius: 8, border: 'none', background: '#e74c3c', color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}
+                  >
+                    +{days} jour{days > 1 ? 's' : ''}
+                  </button>
+                ))}
+              </div>
+              <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)', marginTop: 8 }}>Ajoute des jours à la date de semis pour faire vieillir les plantes</div>
+            </div>
+
+            <div style={{ borderTop: '1px solid rgba(255,255,255,0.1)', paddingTop: 20 }}>
+              <div style={{ fontSize: 14, fontWeight: 600, color: '#fff', marginBottom: 12 }}>🌱 Actions rapides</div>
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                <button
+                  onClick={() => {
+                    setSerres(prev => prev.map(s => ({ ...s, alveoles: Array(SERRE_COLS * SERRE_ROWS).fill(null), alveoleData: {} })));
+                    showToast('🗑️ Toutes les serres vidées !');
+                  }}
+                  style={{ padding: '10px 16px', borderRadius: 8, border: 'none', background: 'rgba(231,76,60,0.3)', color: '#e74c3c', fontSize: 13, cursor: 'pointer' }}>
+                  Vider les serres
+                </button>
+                <button
+                  onClick={() => {
+                    localStorage.removeItem('greenhub-state');
+                    showToast('🗑️ LocalStorage effacé ! Recharge la page.');
+                  }}
+                  style={{ padding: '10px 16px', borderRadius: 8, border: 'none', background: 'rgba(231,76,60,0.3)', color: '#e74c3c', fontSize: 13, cursor: 'pointer' }}>
+                  Reset complet
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Encyclopedia Modal */}
       {showEncyclopedia && (
