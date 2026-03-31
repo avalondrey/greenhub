@@ -1439,7 +1439,7 @@ function generateDailyQuests() {
   const questTypes = [
     { type: 'water', text: '💧 Arrosez 3 plants aujourd\'hui', target: 3, reward: 50 },
     { type: 'plant', text: '🌱 Semez un nouveau légume', target: 1, reward: 100 },
-    { type: 'photo', text: '📸 Prenez une photo d\'un de vos plants', target: 1, reward: 25 },
+    { type: 'photo', text: '�📸 Prenez une photo d\'un de vos plants', target: 1, reward: 25 },
     { type: 'harvest', text: '🧺 Récoltez un plant mûr', target: 1, reward: 75 },
     { type: 'companion', text: '🤝 Plantez un combo compagnon (Tomate+Basilic)', target: 1, reward: 150 },
     { type: 'moon', text: '🌙 Semez selon la phase lunaire', target: 1, reward: 100 },
@@ -1459,6 +1459,16 @@ function generateDailyQuests() {
     quests: selected,
     lastUpdate: new Date().toISOString()
   };
+}
+
+function generateProObjectives(collectedCount = 0) {
+  return [
+    { id: 'obj1', name: 'Première Récolte', target: 1, current: 0, unit: 'kg', reward: 200 },
+    { id: 'obj2', name: 'Jardinier Assidu', target: 10, current: 0, unit: 'plants', reward: 500 },
+    { id: 'obj3', name: 'Maître Compagnonnage', target: 3, current: 0, unit: 'combos', reward: 750 },
+    { id: 'obj4', name: 'Récolte de Tomates', target: 5, current: 0, unit: 'kg', reward: 300 },
+    { id: 'obj5', name: 'Collectionneur', target: 10, current: collectedCount, unit: 'cartes', reward: 1000 },
+  ];
 }
 
 // ─── MAIN APP ─────────────────────────────────────────────────────────────────
@@ -1526,7 +1536,7 @@ export default function App() {
   // Mode Pro - Objectifs
   const [proObjectives, setProObjectives] = useState(() => {
     const saved = localStorage.getItem('greenhub-pro');
-    return saved ? JSON.parse(saved) : generateProObjectives();
+    return saved ? JSON.parse(saved) : generateProObjectives(0);
   });
   
   // États météo
@@ -1746,17 +1756,6 @@ export default function App() {
     const current = events.find(e => e.month === month);
     setCurrentEvent(current || null);
   }, []);
-  
-  // Générer objectifs Pro
-  const generateProObjectives = () => {
-    return [
-      { id: 'obj1', name: 'Première Récolte', target: 1, current: 0, unit: 'kg', reward: 200 },
-      { id: 'obj2', name: 'Jardinier Assidu', target: 10, current: 0, unit: 'plants', reward: 500 },
-      { id: 'obj3', name: 'Maître Compagnonnage', target: 3, current: 0, unit: 'combos', reward: 750 },
-      { id: 'obj4', name: 'Récolte de Tomates', target: 5, current: 0, unit: 'kg', reward: 300 },
-      { id: 'obj5', name: 'Collectionneur', target: 10, current: collectedCards.length, unit: 'cartes', reward: 1000 },
-    ];
-  };
   
   // Vérifier et mettre à jour le streak
   useEffect(() => {
