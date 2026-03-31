@@ -500,29 +500,53 @@ function GardenRealScreen({ permanentPlants, onAddPermanent, onUpdatePlants, onR
     }
   }, [ready, render, permanentPlants, selectedObj, hoveredCell, showShadows, sunAngle]);
 
-  // Fonction pour ajouter les ombres sur le canvas
+      // Fonction pour ajouter les ombres sur le canvas
   const addShadowsToCanvas = (canvas, plants, angle) => {
     const ctx = canvas.getContext('2d');
     const rad = (angle * Math.PI) / 180;
-    const shadowLength = 60; // Longueur ombre
+    const shadowLength = 80; // Longueur ombre augmentée
+    
+    // Constantes du jardin réel (identiques à useRealGardenRenderer)
+    const TILE_W = 80;
+    const TILE_H = 40;
+    
+    // Calculer le centre du canvas
+    const centerX = canvas.width / 2;
+    const centerY = canvas.height / 2;
     
     plants.forEach(plant => {
       if (!plant.position) return;
       // Seuls les grands arbres/fruitiers projettent des ombres
       if (!['tree', 'fruit_tree'].includes(plant.type)) return;
       
-      const { x, y } = isoXY(plant.position.col, plant.position.row);
-      const shadowX = x + Math.cos(rad) * shadowLength;
-      const shadowY = y + Math.sin(rad) * shadowLength * 0.5;
+      // Position isométrique centrée (comme dans useRealGardenRenderer)
+      const c = plant.position.col;
+      const r = plant.position.row;
+      const x = (c - r) * (TILE_W / 2);
+      const y = (c + r) * (TILE_H / 2);
+      
+      // Ajouter l'offset du layout centré
+      const screenX = x + centerX;
+      const screenY = y + centerY + 20; // +20 pour descendre un peu l'ombre
+      
+      // Calcul direction ombre (opposée au soleil)
+      const shadowX = screenX + Math.cos(rad + Math.PI) * shadowLength;
+      const shadowY = screenY + Math.sin(rad + Math.PI) * shadowLength * 0.3; // Aplatir pour iso
       
       ctx.save();
-      ctx.globalAlpha = 0.2;
+      ctx.globalAlpha = 0.15;
       ctx.fillStyle = '#000';
+      
+      // Dessiner une ombre en forme d'ellipse allongée
       ctx.beginPath();
       ctx.ellipse(
-        (x + shadowX) / 2 + layout.ox, 
-        (y + shadowY) / 2 + layout.oy, 
-        30, 15, rad, 0, Math.PI * 2
+        (screenX + shadowX) / 2, // Centre X
+        (screenY + shadowY) / 2, // Centre Y  
+        shadowLength / 2, // Rayon X
+        shadowLength / 4, // Rayon Y (plus court pour perspective iso)
+        rad, // Rotation
+        0, 
+        Math.PI * 2
       );
       ctx.fill();
       ctx.restore();
@@ -748,12 +772,16 @@ function GardenRealScreen({ permanentPlants, onAddPermanent, onUpdatePlants, onR
       <div style={{
         position: 'relative',
         width: '100%',
+        display: 'flex',
+        justifyContent: 'center',
+        alignItems: 'center',
         minHeight: 400,
         borderRadius: 12,
         overflow: 'hidden',
         border: '3px solid rgba(60,90,30,0.5)',
         boxShadow: '0 8px 32px rgba(0,0,0,0.4)',
         userSelect: 'none',
+        background: 'linear-gradient(180deg, #87CEEB 0%, #C8E6C9 100%)',
       }}>
         <canvas
           ref={canvasRef}
@@ -761,8 +789,9 @@ function GardenRealScreen({ permanentPlants, onAddPermanent, onUpdatePlants, onR
           onMouseMove={handleCanvasMove}
           style={{
             display: 'block',
-            width: '100%',
-            height: 400,
+            maxWidth: '100%',
+            height: 'auto',
+            maxHeight: 450,
             cursor: selectedObj ? 'crosshair' : 'pointer',
           }}
         />
