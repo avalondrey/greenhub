@@ -458,8 +458,6 @@ function GardenRealScreen({ permanentPlants, onAddPermanent, onUpdatePlants, onR
   const [selectedObj, setSelectedObj] = useState(null);
   const [showAddPanel, setShowAddPanel] = useState(true);
   const [hoveredCell, setHoveredCell] = useState(null);
-  const [showShadows, setShowShadows] = useState(true); // Toggle ombres
-  const [sunAngle, setSunAngle] = useState(45); // Angle soleil (0-360)
   const [photos, setPhotos] = useState(() => {
     // Charger photos depuis localStorage
     try {
@@ -485,73 +483,14 @@ function GardenRealScreen({ permanentPlants, onAddPermanent, onUpdatePlants, onR
     localStorage.setItem('greenhub_photos', JSON.stringify(photos));
   }, [photos]);
 
-  // Render avec ombres
+  // Render
   useEffect(() => {
     if (!ready) return;
     const canvas = canvasRef.current;
     if (canvas) {
-      // Dessiner d'abord le jardin
       render(canvas, permanentPlants, selectedObj, hoveredCell);
-      
-      // Ajouter les ombres si activé
-      if (showShadows) {
-        addShadowsToCanvas(canvas, permanentPlants, sunAngle);
-      }
     }
-  }, [ready, render, permanentPlants, selectedObj, hoveredCell, showShadows, sunAngle]);
-
-      // Fonction pour ajouter les ombres sur le canvas
-  const addShadowsToCanvas = (canvas, plants, angle) => {
-    const ctx = canvas.getContext('2d');
-    const rad = (angle * Math.PI) / 180;
-    const shadowLength = 80; // Longueur ombre augmentée
-    
-    // Constantes du jardin réel (identiques à useRealGardenRenderer)
-    const TILE_W = 80;
-    const TILE_H = 40;
-    
-    // Calculer le centre du canvas
-    const centerX = canvas.width / 2;
-    const centerY = canvas.height / 2;
-    
-    plants.forEach(plant => {
-      if (!plant.position) return;
-      // Seuls les grands arbres/fruitiers projettent des ombres
-      if (!['tree', 'fruit_tree'].includes(plant.type)) return;
-      
-      // Position isométrique centrée (comme dans useRealGardenRenderer)
-      const c = plant.position.col;
-      const r = plant.position.row;
-      const x = (c - r) * (TILE_W / 2);
-      const y = (c + r) * (TILE_H / 2);
-      
-      // Ajouter l'offset du layout centré
-      const screenX = x + centerX;
-      const screenY = y + centerY + 20; // +20 pour descendre un peu l'ombre
-      
-      // Calcul direction ombre (opposée au soleil)
-      const shadowX = screenX + Math.cos(rad + Math.PI) * shadowLength;
-      const shadowY = screenY + Math.sin(rad + Math.PI) * shadowLength * 0.3; // Aplatir pour iso
-      
-      ctx.save();
-      ctx.globalAlpha = 0.15;
-      ctx.fillStyle = '#000';
-      
-      // Dessiner une ombre en forme d'ellipse allongée
-      ctx.beginPath();
-      ctx.ellipse(
-        (screenX + shadowX) / 2, // Centre X
-        (screenY + shadowY) / 2, // Centre Y  
-        shadowLength / 2, // Rayon X
-        shadowLength / 4, // Rayon Y (plus court pour perspective iso)
-        rad, // Rotation
-        0, 
-        Math.PI * 2
-      );
-      ctx.fill();
-      ctx.restore();
-    });
-  };
+  }, [ready, render, permanentPlants, selectedObj, hoveredCell]);
 
   // Ajouter une photo
   const addPhoto = (plantUid, file) => {
@@ -731,42 +670,6 @@ function GardenRealScreen({ permanentPlants, onAddPermanent, onUpdatePlants, onR
           </div>
         </div>
       )}
-
-      {/* Contrôles ombres */}
-      <div style={{ marginBottom: 8, display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-        <div 
-          onClick={() => setShowShadows(!showShadows)}
-          style={{ 
-            padding: '6px 12px', 
-            borderRadius: 6, 
-            background: showShadows ? 'rgba(46,204,113,0.2)' : 'rgba(255,255,255,0.1)', 
-            border: `1px solid ${showShadows ? '#2ecc71' : 'rgba(255,255,255,0.2)'}`,
-            color: showShadows ? '#2ecc71' : '#fff',
-            fontSize: 11,
-            cursor: 'pointer',
-            display: 'flex',
-            alignItems: 'center',
-            gap: 6
-          }}
-        >
-          {showShadows ? '☀️' : '🌑'} Ombres {showShadows ? 'ON' : 'OFF'}
-        </div>
-        
-        {showShadows && (
-          <>
-            <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.5)' }}>☀️ Position soleil:</div>
-            <input 
-              type="range" 
-              min="0" 
-              max="360" 
-              value={sunAngle} 
-              onChange={(e) => setSunAngle(parseInt(e.target.value))}
-              style={{ width: 100 }}
-            />
-            <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.4)', width: 30 }}>{sunAngle}°</span>
-          </>
-        )}
-      </div>
 
       {/* Vue Canvas du jardin */}
       <div style={{
