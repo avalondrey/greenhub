@@ -1270,6 +1270,88 @@ export default function App() {
     setWeatherAlerts(alerts);
   };
 
+  const [isDarkMode, setIsDarkMode] = useState(() => {
+    const hour = new Date().getHours();
+    return hour < 6 || hour > 20;
+  });
+  
+  // Mode nuit/jour auto selon l'heure
+  useEffect(() => {
+    const checkTime = () => {
+      const hour = new Date().getHours();
+      const shouldBeDark = hour < 6 || hour > 20;
+      setIsDarkMode(shouldBeDark);
+    };
+    checkTime();
+    const interval = setInterval(checkTime, 60000);
+    return () => clearInterval(interval);
+  }, []);
+
+  // Demandes de notification
+  useEffect(() => {
+    if ('Notification' in window && Notification.permission === 'default') {
+      Notification.requestPermission();
+    }
+  }, []);
+  
+  // Vérifier les plants matures toutes les heures
+  useEffect(() => {
+    const checkMature = () => {
+      const now = Date.now();
+      serres.forEach(serre => {
+        serre.alveoles.forEach((alv, idx) => {
+          if (!alv) return;
+          const data = serre.alveoleData?.[idx];
+          if (!data?.plantedDate) return;
+          const days = (now - new Date(data.plantedDate).getTime()) / (1000 * 60 * 60 * 24);
+          const plant = PLANTS_DB.find(p => p.id === alv.plantId);
+          if (plant && days >= plant.daysToMaturity) {
+            if (Notification.permission === 'granted') {
+              new Notification('🌱 GreenHub', { 
+                body: `${plant.name} est prêt(e) à être repiquée !`,
+                icon: '/seedling.svg'
+              });
+            }
+          }
+        });
+      });
+    };
+    checkMature();
+    const interval = setInterval(checkMature, 3600000);
+    return () => clearInterval(interval);
+  }, [serres]);
+
+  // Calcul récoltes estimées
+  const harvestEstimate = useMemo(() => {
+    let totalKg = 0;
+    const byPlant = {};
+    
+    serres.forEach(serre => {
+      serre.alveoles.forEach(alv => {
+        if (!alv) return;
+        const plant = PLANTS_DB.find(p => p.id === alv.plantId);
+        if (!plant?.yield) return;
+        const avgYield = (plant.yield.min + plant.yield.max) / 2;
+        totalKg += avgYield;
+        byPlant[plant.name] = (byPlant[plant.name] || 0) + avgYield;
+      });
+    });
+    
+    permanentPlants.forEach(plant => {
+      if (!plant.production) return;
+      const match = plant.production.match(/(\d+)-?(\d+)?/);
+      if (match) {
+        const min = parseInt(match[1]);
+        const max = match[2] ? parseInt(match[2]) : min;
+        const avg = (min + max) / 2;
+        totalKg += avg;
+        byPlant[plant.name] = (byPlant[plant.name] || 0) + avg;
+      }
+    });
+    
+    return { totalKg: totalKg.toFixed(1), byPlant };
+  }, [serres, permanentPlants]);
+
   const addSerre = (name) => {
     setSerres(s => [...s, { id: uid(), name, alveoles: Array(SERRE_COLS * SERRE_ROWS).fill(null), alveoleData: {} }]);
     showToast(`🏠 "${name}" ajoutée !`);
@@ -1418,15 +1500,19 @@ export default function App() {
             )}
             <div style={{ fontSize: 20, fontWeight: 700, color: '#2ecc71' }}>{score} pts</div>
           </div>
-          <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.3)' }}>🏠 {totalAlv} alvéoles · 🌍 {totalGarden} au jardin · {totalYield.toFixed(1)}kg est.</div>
-          <div onClick={() => setShowAdmin(true)} style={{ fontSize: 10, color: '#e74c3c', cursor: 'pointer', marginTop: 4, fontWeight: 600 }}>🔧 Admin</div>
+          <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.3)' }}>
+            🏠 {totalAlv} alvéoles · 🌍 {totalGarden} au jardin · 🧺 {harvestEstimate.totalKg}kg est.
+          </div>
+          <div onClick={() => setShowAdmin(true)} style={{ fontSize: 10, color: '#e74c3c', cursor: 'pointer', marginTop: 4, fontWeight: 600 }}>
+            🔧 Admin
+          </div>
         </div>
       </div>
 
       {/* Tabs */}
       <div style={{ display: 'flex', gap: 3, margin: '14px 20px 0' }}>
-        {[['serres', '🏠 Mini Serres'], ['real_garden', '🏡 Jardin Réel'], ['semer', '🌱 Semer'], ['game', '⭐ Jeu']].map(([id, label]) => (
-          <div key={id} onClick={() => { setTab(id); if (id === 'game') setShowGame(true); if (id === 'encyclopedia') setShowEncyclopedia(true); }} style={{ flex: 1, textAlign: 'center', padding: '9px 0', borderRadius: 10, cursor: 'pointer', fontSize: 11, background: tab === id ? 'rgba(46,204,113,0.15)' : 'rgba(255,255,255,0.03)', border: `1px solid ${tab === id ? '#2ecc7160' : 'rgba(255,255,255,0.06)'}`, color: tab === id ? '#2ecc71' : 'rgba(255,255,255,0.4)', fontWeight: tab === id ? 600 : 400, transition: 'all 0.2s' }}>{label}</div>
+        {[['serres', '🏠 Serres'], ['real_garden', '🏡 Jardin'], ['semer', '🌱 Semer'], ['recoltes', '🧺 Récoltes'], ['game', '⭐ Score']].map(([id, label]) => (
+          <div key={id} onClick={() => { setTab(id); if (id === 'game') setShowGame(true); }} style={{ flex: 1, textAlign: 'center', padding: '9px 0', borderRadius: 10, cursor: 'pointer', fontSize: 11, background: tab === id ? 'rgba(46,204,113,0.15)' : 'rgba(255,255,255,0.03)', border: `1px solid ${tab === id ? '#2ecc7160' : 'rgba(255,255,255,0.06)'}`, color: tab === id ? '#2ecc71' : 'rgba(255,255,255,0.4)', fontWeight: tab === id ? 600 : 400, transition: 'all 0.2s' }}>{label}</div>
         ))}
       </div>
 
@@ -1470,6 +1556,36 @@ export default function App() {
         {tab === 'serres' && <SerreScreen serres={serres} onAddSerre={addSerre} onTransplant={handleTransplant} onRemoveSerreSeed={handleRemoveSerreSeed} onMoveSerreSeed={handleMoveSerreSeed} />}
         {tab === 'real_garden' && <GardenRealScreen permanentPlants={permanentPlants} onAddPermanent={(obj) => { setPermanentPlants(p => [...p, obj]); showToast(`🌳 ${obj.name} ajouté au jardin !`); }} onUpdatePlants={(updater) => setPermanentPlants(updater)} onRemovePermanent={(uid) => { setPermanentPlants(p => p.filter(x => x.uid !== uid)); showToast('🗑️ Élément retiré'); }} />}
         {tab === 'semer' && <SowingScreen serres={serres} onAddSerre={addSerre} onSow={handleSow} />}
+        {tab === 'recoltes' && (
+          <div>
+            <div style={{ fontSize: 16, fontWeight: 700, color: '#2ecc71', marginBottom: 16 }}>🧺 Estimation des Récoltes</div>
+            <div style={{ background: 'rgba(46,204,113,0.1)', border: '1px solid rgba(46,204,113,0.3)', borderRadius: 12, padding: 16, marginBottom: 16 }}>
+              <div style={{ fontSize: 32, fontWeight: 800, color: '#2ecc71', marginBottom: 4 }}>{harvestEstimate.totalKg} kg</div>
+              <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.5)' }}>Production totale estimée</div>
+            </div>
+            
+            <div style={{ marginTop: 16 }}>
+              <div style={{ fontSize: 14, color: 'rgba(255,255,255,0.7)', marginBottom: 12 }}>Détail par plante:</div>
+              {Object.entries(harvestEstimate.byPlant).length === 0 ? (
+                <div style={{ color: 'rgba(255,255,255,0.4)', fontSize: 13, fontStyle: 'italic' }}>Aucune plante n'a été semée ou ajoutée au jardin.</div>
+              ) : (
+                Object.entries(harvestEstimate.byPlant).map(([name, kg]) => (
+                  <div key={name} style={{ display: 'flex', justifyContent: 'space-between', padding: '10px 0', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                    <span style={{ color: 'rgba(255,255,255,0.8)', fontSize: 14 }}>{name}</span>
+                    <span style={{ color: '#2ecc71', fontWeight: 600 }}>{kg.toFixed(1)} kg</span>
+                  </div>
+                ))
+              )}
+            </div>
+            
+            <div style={{ marginTop: 20, padding: 12, background: 'rgba(255,255,255,0.03)', borderRadius: 8 }}>
+              <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.4)' }}>
+                💡 Ces estimations sont basées sur les rendements moyens de chaque plante.
+                <br />Les conditions météo et votre entretien peuvent faire varier les résultats.
+              </div>
+            </div>
+          </div>
+        )}
         {tab === 'game' && <GameScreen score={score} level={level} streak={streak} badges={badges} totalPlants={totalGarden} totalYield={totalYield} onClose={() => setTab('serres')} />}
       </div>
 
@@ -1477,7 +1593,7 @@ export default function App() {
       <div style={{ position: 'fixed', bottom: 0, left: 0, right: 0, padding: '10px 20px', background: 'rgba(13,17,23,0.95)', borderTop: '1px solid rgba(255,255,255,0.06)', display: 'flex', justifyContent: 'space-around', backdropFilter: 'blur(10px)' }}>
         <div onClick={() => setTab('serres')} style={{ textAlign: 'center', cursor: 'pointer' }}>
           <div style={{ fontSize: 20 }}>🏠</div>
-          <div style={{ fontSize: 10, color: tab === 'serres' ? '#2ecc71' : 'rgba(255,255,255,0.3)' }}>Mini Serres</div>
+          <div style={{ fontSize: 10, color: tab === 'serres' ? '#2ecc71' : 'rgba(255,255,255,0.3)' }}>Serres</div>
         </div>
         <div onClick={() => setTab('real_garden')} style={{ textAlign: 'center', cursor: 'pointer' }}>
           <div style={{ fontSize: 20 }}>🏡</div>
@@ -1487,13 +1603,13 @@ export default function App() {
           <div style={{ fontSize: 20 }}>🌱</div>
           <div style={{ fontSize: 10, color: tab === 'semer' ? '#2ecc71' : 'rgba(255,255,255,0.3)' }}>Semer</div>
         </div>
+        <div onClick={() => setTab('recoltes')} style={{ textAlign: 'center', cursor: 'pointer' }}>
+          <div style={{ fontSize: 20 }}>🧺</div>
+          <div style={{ fontSize: 10, color: tab === 'recoltes' ? '#2ecc71' : 'rgba(255,255,255,0.3)' }}>Récoltes</div>
+        </div>
         <div onClick={() => { setShowEncyclopedia(true); }} style={{ textAlign: 'center', cursor: 'pointer' }}>
           <div style={{ fontSize: 20 }}>📚</div>
-          <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.3)' }}>Encyclopédie</div>
-        </div>
-        <div onClick={() => { setScore(s => { const n = s + 5; setLevel(Math.floor(n / 100) + 1); return n; }); setTab('game'); }} style={{ textAlign: 'center', cursor: 'pointer' }}>
-          <div style={{ fontSize: 20 }}>⭐</div>
-          <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.3)' }}>Jeu</div>
+          <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.3)' }}>Encyclo</div>
         </div>
       </div>
 
@@ -1535,6 +1651,54 @@ export default function App() {
               <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)', marginTop: 8 }}>Ajoute des jours à la date de semis pour faire vieillir les plantes</div>
             </div>
 
+            <div style={{ borderTop: '1px solid rgba(255,255,255,0.1)', paddingTop: 20, marginTop: 20 }}>
+              <div style={{ fontSize: 14, fontWeight: 600, color: '#fff', marginBottom: 12 }}>💾 Sauvegarder / Charger</div>
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                <button
+                  onClick={() => {
+                    const data = { serres, gardenGrid, permanentPlants, score, level, streak, badges };
+                    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = `greenhub-backup-${new Date().toISOString().split('T')[0]}.json`;
+                    a.click();
+                    showToast('💾 Jardin exporté !');
+                  }}
+                  style={{ padding: '10px 16px', borderRadius: 8, border: 'none', background: 'rgba(46,204,113,0.3)', color: '#2ecc71', fontSize: 13, cursor: 'pointer' }}
+                >
+                  📤 Exporter (JSON)
+                </button>
+                <label style={{ padding: '10px 16px', borderRadius: 8, border: 'none', background: 'rgba(52,152,219,0.3)', color: '#3498db', fontSize: 13, cursor: 'pointer', display: 'inline-block' }}>
+                  📥 Importer (JSON)
+                  <input
+                    type="file"
+                    accept=".json"
+                    style={{ display: 'none' }}
+                    onChange={(e) => {
+                      const file = e.target.files[0];
+                      if (!file) return;
+                      const reader = new FileReader();
+                      reader.onload = (event) => {
+                        try {
+                          const data = JSON.parse(event.target.result);
+                          if (data.serres) setSerres(data.serres);
+                          if (data.gardenGrid) setGardenGrid(data.gardenGrid);
+                          if (data.permanentPlants) setPermanentPlants(data.permanentPlants);
+                          if (data.score) setScore(data.score);
+                          if (data.level) setLevel(data.level);
+                          showToast('✅ Jardin importé avec succès !');
+                        } catch {
+                          showToast('❌ Fichier invalide', 'error');
+                        }
+                      };
+                      reader.readAsText(file);
+                    }}
+                  />
+                </label>
+              </div>
+            </div>
+
             <div style={{ borderTop: '1px solid rgba(255,255,255,0.1)', paddingTop: 20 }}>
               <div style={{ fontSize: 14, fontWeight: 600, color: '#fff', marginBottom: 12 }}>🌱 Actions rapides</div>
               <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
@@ -1543,7 +1707,8 @@ export default function App() {
                     setSerres(prev => prev.map(s => ({ ...s, alveoles: Array(SERRE_COLS * SERRE_ROWS).fill(null), alveoleData: {} })));
                     showToast('🗑️ Toutes les serres vidées !');
                   }}
-                  style={{ padding: '10px 16px', borderRadius: 8, border: 'none', background: 'rgba(231,76,60,0.3)', color: '#e74c3c', fontSize: 13, cursor: 'pointer' }}>
+                  style={{ padding: '10px 16px', borderRadius: 8, border: 'none', background: 'rgba(231,76,60,0.3)', color: '#e74c3c', fontSize: 13, cursor: 'pointer' }}
+                >
                   Vider les serres
                 </button>
                 <button
