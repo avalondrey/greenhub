@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect, useRef } from 'react';
+import { useState, useCallback, useEffect, useRef, useMemo } from 'react';
 import { PLANTS_DB, PLANTS_SIMPLE, generateTasks, estimateYield } from './db/plants.js';
 import useTileRenderer from './hooks/useTileRenderer.js';
 import useRealGardenRenderer from './hooks/useRealGardenRenderer.js';
