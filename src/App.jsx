@@ -97,6 +97,39 @@ const S = {
   primaryBtn: { display: 'block', width: '100%', textAlign: 'center', padding: '12px 0', borderRadius: 12, cursor: 'pointer', fontSize: 14, fontWeight: 700, border: 'none', boxSizing: 'border-box', transition: 'opacity 0.2s' },
 };
 
+// Fonction pour calculer la phase lunaire actuelle
+function getMoonPhase(date = new Date()) {
+  const year = date.getFullYear();
+  const month = date.getMonth() + 1;
+  const day = date.getDate();
+  
+  let c, e, jd, b;
+  if (month < 3) {
+    year--;
+    month += 12;
+  }
+  c = 365.25 * year;
+  e = 30.6 * month;
+  jd = c + e + day - 694039.09;
+  jd /= 29.5305882;
+  b = Math.floor(jd);
+  jd -= b;
+  b = Math.round(jd * 8);
+  
+  const phases = [
+    { name: 'Nouvelle lune', icon: '🌑', sow: 'racines' },
+    { name: 'Premier croissant', icon: '🌒', sow: 'feuilles' },
+    { name: 'Premier quartier', icon: '🌓', sow: 'feuilles' },
+    { name: 'Lune gibbeuse', icon: '🌔', sow: 'fruits' },
+    { name: 'Pleine lune', icon: '🌕', sow: 'graines' },
+    { name: 'Gibbeuse décroissante', icon: '🌖', sow: false },
+    { name: 'Dernier quartier', icon: '🌗', sow: false },
+    { name: 'Dernier croissant', icon: '🌘', sow: 'racines' }
+  ];
+  
+  return phases[b] || phases[0];
+}
+
 // ── GROWTH STAGES (6 stades pour le rendu SVG/emoji fallback) ──
 const GROWTH_STAGES = [
   { name: 'graine',      emoji: '🟤', scale: 0.4, opacity: 0.6 },
@@ -197,10 +230,11 @@ function SowingScreen({ serres, onAddSerre, onSow }) {
   const [targetSerre, setTargetSerre] = useState(null);
   const [showAddSerre, setShowAddSerre] = useState(false);
   const [newSerreName, setNewSerreName] = useState('');
-  const [sowingDate, setSowingDate] = useState(''); // date personnalisee
+  const [sowingDate, setSowingDate] = useState('');
   const [useCustomDate, setUseCustomDate] = useState(false);
+  const moon = getMoonPhase();
 
-  // Calculer date par defaut (il y a X jours)
+  // Calculer date par defaut
   const getDefaultDaysAgo = (days) => {
     const d = new Date();
     d.setDate(d.getDate() - days);
@@ -223,6 +257,30 @@ function SowingScreen({ serres, onAddSerre, onSow }) {
   if (step === 0) return (
     <div>
       <div style={S.label}>Quelle plante as-tu semée ?</div>
+      
+      {/* Indicateur phase lunaire */}
+      <div style={{ 
+        marginBottom: 12, 
+        padding: '10px 14px', 
+        background: 'rgba(255,255,255,0.05)', 
+        borderRadius: 10,
+        border: '1px solid rgba(255,255,255,0.1)',
+        display: 'flex',
+        alignItems: 'center',
+        gap: 10
+      }}>
+        <span style={{ fontSize: 24 }}>{moon.icon}</span>
+        <div>
+          <div style={{ fontSize: 12, fontWeight: 600 }}>{moon.name}</div>
+          <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.5)' }}>
+            {moon.sow 
+              ? `✅ Bon moment pour semer : ${moon.sow === 'racines' ? 'racines (carottes, radis...)' : moon.sow === 'feuilles' ? 'feuilles (salades, épinards...)' : moon.sow === 'fruits' ? 'fruits (tomates, courges...)' : 'graines (haricots, pois...)'}`
+              : '❌ Jour de repos - évitez les semis'
+            }
+          </div>
+        </div>
+      </div>
+      
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 8 }}>
         {PLANTS_SIMPLE.map(p => (
           <div key={p.id} onClick={() => { setPlant(p); setStep(1); }} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, padding: '10px 12px', borderRadius: 12, cursor: 'pointer', border: `2px solid ${p.color}50`, background: p.color + '15', minWidth: 60 }}>
