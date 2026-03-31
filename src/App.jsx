@@ -99,8 +99,8 @@ const S = {
 
 // Fonction pour calculer la phase lunaire actuelle
 function getMoonPhase(date = new Date()) {
-  const year = date.getFullYear();
-  const month = date.getMonth() + 1;
+  let year = date.getFullYear();
+  let month = date.getMonth() + 1;
   const day = date.getDate();
   
   let c, e, jd, b;
@@ -1434,6 +1434,33 @@ function EncyclopediaScreen({ onClose }) {
   );
 }
 
+// ─── FONCTIONS UTILITAIRES POUR LE JEU ─────────────────────────────────────
+function generateDailyQuests() {
+  const questTypes = [
+    { type: 'water', text: '💧 Arrosez 3 plants aujourd\'hui', target: 3, reward: 50 },
+    { type: 'plant', text: '🌱 Semez un nouveau légume', target: 1, reward: 100 },
+    { type: 'photo', text: '📸 Prenez une photo d\'un de vos plants', target: 1, reward: 25 },
+    { type: 'harvest', text: '🧺 Récoltez un plant mûr', target: 1, reward: 75 },
+    { type: 'companion', text: '🤝 Plantez un combo compagnon (Tomate+Basilic)', target: 1, reward: 150 },
+    { type: 'moon', text: '🌙 Semez selon la phase lunaire', target: 1, reward: 100 },
+    { type: 'variety', text: '🥗 Plantez 3 variétés différentes', target: 3, reward: 125 },
+  ];
+  
+  // Sélectionner 3 quêtes aléatoires
+  const shuffled = [...questTypes].sort(() => Math.random() - 0.5);
+  const selected = shuffled.slice(0, 3).map((q, i) => ({
+    id: `quest-${Date.now()}-${i}`,
+    ...q,
+    completed: false,
+    progress: 0,
+  }));
+  
+  return {
+    quests: selected,
+    lastUpdate: new Date().toISOString()
+  };
+}
+
 // ─── MAIN APP ─────────────────────────────────────────────────────────────────
 export default function App() {
   const [serres, setSerres] = useState([
@@ -1605,33 +1632,6 @@ export default function App() {
   };
 
   // ═══ FONCTIONS SYSTÈME DE JEU ═══════════════════════════════════════════════
-  
-  // Générer 3 quêtes quotidiennes aléatoires
-  const generateDailyQuests = () => {
-    const questTypes = [
-      { type: 'water', text: '💧 Arrosez 3 plants aujourd\'hui', target: 3, reward: 50 },
-      { type: 'plant', text: '🌱 Semez un nouveau légume', target: 1, reward: 100 },
-      { type: 'photo', text: '📸 Prenez une photo d\'un de vos plants', target: 1, reward: 25 },
-      { type: 'harvest', text: '🧺 Récoltez un plant mûr', target: 1, reward: 75 },
-      { type: 'companion', text: '🤝 Plantez un combo compagnon (Tomate+Basilic)', target: 1, reward: 150 },
-      { type: 'moon', text: '🌙 Semez selon la phase lunaire', target: 1, reward: 100 },
-      { type: 'variety', text: '🥗 Plantez 3 variétés différentes', target: 3, reward: 125 },
-    ];
-    
-    // Sélectionner 3 quêtes aléatoires
-    const shuffled = [...questTypes].sort(() => Math.random() - 0.5);
-    const selected = shuffled.slice(0, 3).map((q, i) => ({
-      id: `quest-${Date.now()}-${i}`,
-      ...q,
-      completed: false,
-      progress: 0,
-    }));
-    
-    return {
-      quests: selected,
-      lastUpdate: new Date().toISOString()
-    };
-  };
   
   // Compléter une quête
   const completeQuest = (questId) => {
