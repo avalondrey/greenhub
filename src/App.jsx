@@ -1089,16 +1089,46 @@ function GameScreen({ score, level, streak, badges, totalPlants, totalYield, onC
 // ─── PLANTS ENCYCLOPEDIA ─────────────────────────────────────────────────────
 function EncyclopediaScreen({ onClose }) {
   const [family, setFamily] = useState('all');
+  const [search, setSearch] = useState('');
   const families = ['all', ...new Set(PLANTS_DB.map(p => p.family))];
-  const filtered = family === 'all' ? PLANTS_DB : PLANTS_DB.filter(p => p.family === family);
+  const filtered = PLANTS_DB.filter(p => {
+    if (family !== 'all' && p.family !== family) return false;
+    if (search) {
+      const s = search.toLowerCase();
+      return p.name.toLowerCase().includes(s) || 
+             p.variety?.toLowerCase().includes(s) || 
+             p.family.toLowerCase().includes(s);
+    }
+    return true;
+  });
   const [selected, setSelected] = useState(null);
 
   return (
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
-        <div style={{ fontSize: 16, fontWeight: 600 }}>📚 Encyclopédie ({PLANTS_DB.length} plantes)</div>
+        <div style={{ fontSize: 16, fontWeight: 600 }}>📚 Encyclopédie ({filtered.length} plantes)</div>
         <div onClick={onClose} style={{ fontSize: 12, color: 'rgba(255,255,255,0.4)', cursor: 'pointer' }}>✕ Fermer</div>
       </div>
+      
+      {/* Barre de recherche */}
+      <input
+        type="text"
+        placeholder="🔍 Rechercher..."
+        value={search}
+        onChange={(e) => setSearch(e.target.value)}
+        style={{
+          width: '100%',
+          padding: '10px 14px',
+          borderRadius: 10,
+          border: '1px solid rgba(255,255,255,0.1)',
+          background: 'rgba(255,255,255,0.05)',
+          color: '#fff',
+          fontSize: 13,
+          marginBottom: 12,
+          outline: 'none'
+        }}
+      />
+      
       <div style={{ display: 'flex', gap: 4, marginBottom: 12, overflowX: 'auto', paddingBottom: 4 }}>
         {families.map(f => (
           <div key={f} onClick={() => setFamily(f)} style={{ padding: '4px 10px', borderRadius: 20, fontSize: 11, cursor: 'pointer', whiteSpace: 'nowrap', background: family === f ? 'rgba(46,204,113,0.2)' : 'rgba(255,255,255,0.05)', border: `1px solid ${family === f ? '#2ecc71' : 'rgba(255,255,255,0.1)'}`, color: family === f ? '#2ecc71' : 'rgba(255,255,255,0.5)' }}>
