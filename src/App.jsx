@@ -1802,6 +1802,18 @@ export default function App() {
       lastUpdate: new Date().toISOString() 
     }));
   }, [dailyQuests]);
+  
+  // Sauvegarder objectifs Pro
+  useEffect(() => {
+    localStorage.setItem('greenhub-pro', JSON.stringify(proObjectives));
+  }, [proObjectives]);
+  
+  // Mettre à jour l'objectif Collectionneur quand les cartes changent
+  useEffect(() => {
+    setProObjectives(prev => prev.map(obj => 
+      obj.id === 'obj5' ? { ...obj, current: collectedCards.length } : obj
+    ));
+  }, [collectedCards]);
 
   const [isDarkMode, setIsDarkMode] = useState(() => {
     const hour = new Date().getHours();
