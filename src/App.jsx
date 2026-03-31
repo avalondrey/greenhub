@@ -1144,6 +1144,191 @@ function GameScreen({ score, level, streak, badges, totalPlants, totalYield, onC
   );
 }
 
+// ─── CALENDRIER LUNAIRE ──────────────────────────────────────────────────────
+function CalendarScreen({ onClose }) {
+  const today = new Date();
+  const [month, setMonth] = useState(today.getMonth());
+  const [year, setYear] = useState(today.getFullYear());
+  const [selectedDay, setSelectedDay] = useState(today.getDate());
+  
+  const monthNames = ['Janvier', 'Février', 'Mars', 'Avril', 'Mai', 'Juin', 
+                      'Juillet', 'Août', 'Septembre', 'Octobre', 'Novembre', 'Décembre'];
+  
+  const weekDays = ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim'];
+  
+  // Calculer les jours du mois avec phases lunaires
+  const getDaysInMonth = () => {
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
+    const firstDayOfMonth = new Date(year, month, 1).getDay();
+    const startOffset = firstDayOfMonth === 0 ? 6 : firstDayOfMonth - 1;
+    
+    const days = [];
+    
+    // Jours vides avant le début du mois
+    for (let i = 0; i < startOffset; i++) {
+      days.push(null);
+    }
+    
+    // Jours du mois
+    for (let day = 1; day <= daysInMonth; day++) {
+      const date = new Date(year, month, day);
+      const moon = getMoonPhase(date);
+      const isToday = day === today.getDate() && month === today.getMonth() && year === today.getFullYear();
+      
+      days.push({
+        day,
+        moon,
+        isToday,
+        date
+      });
+    }
+    
+    return days;
+  };
+  
+  const days = getDaysInMonth();
+  const selectedDate = new Date(year, month, selectedDay);
+  const selectedMoon = getMoonPhase(selectedDate);
+  
+  // Plants recommandés pour le jour sélectionné
+  const getRecommendedForMoon = (moonType) => {
+    if (!moonType) return [];
+    return PLANTS_DB.filter(p => {
+      const plantType = p.id.includes('carotte') || p.id.includes('radis') || p.id.includes('betterave') ? 'racines' :
+                       p.id.includes('salade') || p.id.includes('laitue') || p.id.includes('epinard') || p.id.includes('chou') ? 'feuilles' :
+                       p.id.includes('tomate') || p.id.includes('poivron') || p.id.includes('courgette') || p.id.includes('aubergine') ? 'fruits' :
+                       p.id.includes('haricot') || p.id.includes('pois') ? 'graines' : null;
+      return plantType === moonType;
+    }).slice(0, 4);
+  };
+  
+  const recommended = getRecommendedForMoon(selectedMoon.sow);
+  
+  const changeMonth = (delta) => {
+    const newMonth = month + delta;
+    if (newMonth > 11) {
+      setMonth(0);
+      setYear(y => y + 1);
+    } else if (newMonth < 0) {
+      setMonth(11);
+      setYear(y => y - 1);
+    } else {
+      setMonth(newMonth);
+    }
+  };
+
+  return (
+    <div>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+        <div style={{ fontSize: 16, fontWeight: 600 }}>📅 Calendrier Lunaire</div>
+        <div onClick={onClose} style={{ fontSize: 12, color: 'rgba(255,255,255,0.4)', cursor: 'pointer' }}>✕ Fermer</div>
+      </div>
+      
+      {/* Sélecteur de mois */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+        <button onClick={() => changeMonth(-1)} style={{ padding: '8px 16px', background: 'rgba(255,255,255,0.1)', border: 'none', borderRadius: 8, color: '#fff', cursor: 'pointer', fontSize: 14 }}>←</button>
+        <div style={{ fontSize: 18, fontWeight: 700 }}>{monthNames[month]} {year}</div>
+        <button onClick={() => changeMonth(1)} style={{ padding: '8px 16px', background: 'rgba(255,255,255,0.1)', border: 'none', borderRadius: 8, color: '#fff', cursor: 'pointer', fontSize: 14 }}>→</button>
+      </div>
+      
+      {/* Info jour sélectionné */}
+      <div style={{ 
+        marginBottom: 16, 
+        padding: 14, 
+        background: selectedMoon.sow ? 'rgba(46,204,113,0.1)' : 'rgba(255,255,255,0.05)', 
+        border: `1px solid ${selectedMoon.sow ? 'rgba(46,204,113,0.3)' : 'rgba(255,255,255,0.1)'}`, 
+        borderRadius: 12 
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 10 }}>
+          <span style={{ fontSize: 36 }}>{selectedMoon.icon}</span>
+          <div>
+            <div style={{ fontSize: 14, fontWeight: 700 }}>{selectedDate.toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })}</div>
+            <div style={{ fontSize: 13, color: selectedMoon.sow ? '#2ecc71' : 'rgba(255,255,255,0.5)' }}>
+              {selectedMoon.name} {selectedMoon.sow ? '✅' : '❌'}
+            </div>
+          </div>
+        </div>
+        
+        {selectedMoon.sow ? (
+          <>
+            <div style={{ fontSize: 12, color: '#2ecc71', marginBottom: 10 }}>
+              🌱 Idéal pour semer : {selectedMoon.sow === 'racines' ? 'légumes racines' : selectedMoon.sow === 'feuilles' ? 'légumes feuilles' : selectedMoon.sow === 'fruits' ? 'légumes fruits' : 'légumineuses'}
+            </div>
+            {recommended.length > 0 && (
+              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                {recommended.map(p => (
+                  <div key={p.id} style={{ padding: '4px 10px', background: p.color + '20', border: `1px solid ${p.color}40`, borderRadius: 6, fontSize: 11 }}>
+                    {p.icon} {p.name}
+                  </div>
+                ))}
+              </div>
+            )}
+          </>
+        ) : (
+          <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.6)' }}>
+            🚫 Jour de lune décroissante - privilégiez l'entretien du jardin
+          </div>
+        )}
+      </div>
+      
+      {/* Grille calendrier */}
+      <div>
+        {/* En-têtes jours */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 4, marginBottom: 8 }}>
+          {weekDays.map((d, i) => (
+            <div key={i} style={{ textAlign: 'center', fontSize: 11, color: 'rgba(255,255,255,0.4)', padding: '6px 0' }}>
+              {d}
+            </div>
+          ))}
+        </div>
+        
+        {/* Jours */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 4 }}>
+          {days.map((dayData, idx) => {
+            if (!dayData) return <div key={`empty-${idx}`} />;
+            
+            const isSelected = dayData.day === selectedDay;
+            
+            return (
+              <button
+                key={dayData.day}
+                onClick={() => setSelectedDay(dayData.day)}
+                style={{
+                  padding: '8px 4px',
+                  borderRadius: 8,
+                  border: 'none',
+                  background: isSelected ? 'rgba(46,204,113,0.3)' : dayData.isToday ? 'rgba(255,255,255,0.15)' : 'rgba(255,255,255,0.05)',
+                  color: '#fff',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  gap: 2
+                }}
+              >
+                <div style={{ fontSize: 13, fontWeight: isSelected ? 700 : 400 }}>{dayData.day}</div>
+                <div style={{ fontSize: 14 }}>{dayData.moon.icon}</div>
+                {dayData.isToday && <div style={{ width: 4, height: 4, borderRadius: '50%', background: '#2ecc71', marginTop: 2 }} />}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+      
+      {/* Légende */}
+      <div style={{ marginTop: 20, padding: 12, background: 'rgba(255,255,255,0.03)', borderRadius: 10 }}>
+        <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 10 }}>🌙 Guide</div>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6, fontSize: 11 }}>
+          <div>🌑→🌓 Racines</div>
+          <div>🌓→🌕 Feuilles</div>
+          <div>🌕→🌗 Fruits</div>
+          <div>🌗→🌑 Repos</div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── PLANTS ENCYCLOPEDIA ─────────────────────────────────────────────────────
 function EncyclopediaScreen({ onClose }) {
   const [family, setFamily] = useState('all');
@@ -1268,6 +1453,7 @@ export default function App() {
   const [badges, setBadges] = useState(0);
   const [showGame, setShowGame] = useState(false);
   const [showEncyclopedia, setShowEncyclopedia] = useState(false);
+  const [showCalendar, setShowCalendar] = useState(false);
   const [showAdmin, setShowAdmin] = useState(false);
   
   // États météo
@@ -1353,6 +1539,20 @@ export default function App() {
     // Vent
     if (daily?.windspeed_10m_max?.[0] > 50) {
       alerts.push({ type: 'warning', icon: '💨', msg: `Vent fort (${daily.windspeed_10m_max[0]}km/h) - Tuteures à vérifier` });
+    }
+    
+    // Phase lunaire - Alerte pour semis
+    const moon = getMoonPhase();
+    if (moon.sow) {
+      const typePlants = moon.sow === 'racines' ? 'carottes, radis, betteraves' : 
+                        moon.sow === 'feuilles' ? 'salades, épinards, choux' : 
+                        moon.sow === 'fruits' ? 'tomates, courges, poivrons' : 
+                        'haricots, pois';
+      alerts.push({ 
+        type: 'success', 
+        icon: moon.icon, 
+        msg: `${moon.name} - Parfait pour semer : ${typePlants}` 
+      });
     }
     
     setWeatherAlerts(alerts);
@@ -1699,6 +1899,10 @@ export default function App() {
           <div style={{ fontSize: 20 }}>📚</div>
           <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.3)' }}>Encyclo</div>
         </div>
+        <div onClick={() => { setShowCalendar(true); }} style={{ textAlign: 'center', cursor: 'pointer' }}>
+          <div style={{ fontSize: 20 }}>📅</div>
+          <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.3)' }}>Calendrier</div>
+        </div>
       </div>
 
       {/* Admin Panel */}
@@ -1817,6 +2021,13 @@ export default function App() {
       {showEncyclopedia && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', backdropFilter: 'blur(8px)', zIndex: 100, padding: 20, overflowY: 'auto' }}>
           <EncyclopediaScreen onClose={() => setShowEncyclopedia(false)} />
+        </div>
+      )}
+
+      {/* Calendar Modal */}
+      {showCalendar && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', backdropFilter: 'blur(8px)', zIndex: 100, padding: 20, overflowY: 'auto' }}>
+          <CalendarScreen onClose={() => setShowCalendar(false)} />
         </div>
       )}
 
