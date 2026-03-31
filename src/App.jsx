@@ -1455,6 +1455,52 @@ export default function App() {
   const [showEncyclopedia, setShowEncyclopedia] = useState(false);
   const [showCalendar, setShowCalendar] = useState(false);
   const [showAdmin, setShowAdmin] = useState(false);
+  const [showQuests, setShowQuests] = useState(false);
+  const [showCollection, setShowCollection] = useState(false);
+  const [showSkillTree, setShowSkillTree] = useState(false);
+  
+  // Système de Quêtes
+  const [dailyQuests, setDailyQuests] = useState(() => {
+    const saved = localStorage.getItem('greenhub-quests');
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      // Vérifier si c'est un nouveau jour
+      const lastUpdate = new Date(parsed.lastUpdate);
+      const today = new Date();
+      if (lastUpdate.toDateString() !== today.toDateString()) {
+        return generateDailyQuests();
+      }
+      return parsed.quests;
+    }
+    return generateDailyQuests();
+  });
+  
+  // Système de Cartes à collectionner
+  const [collectedCards, setCollectedCards] = useState(() => {
+    const saved = localStorage.getItem('greenhub-cards');
+    return saved ? JSON.parse(saved) : [];
+  });
+  
+  // Compétences débloquées
+  const [unlockedSkills, setUnlockedSkills] = useState(() => {
+    const saved = localStorage.getItem('greenhub-skills');
+    return saved ? JSON.parse(saved) : [];
+  });
+  
+  // Streak de jardinage
+  const [gardenStreak, setGardenStreak] = useState(() => {
+    const saved = localStorage.getItem('greenhub-streak');
+    return saved ? JSON.parse(saved) : { count: 0, lastActive: null };
+  });
+  
+  // Événement saisonnier actuel
+  const [currentEvent, setCurrentEvent] = useState(null);
+  
+  // Mode Pro - Objectifs
+  const [proObjectives, setProObjectives] = useState(() => {
+    const saved = localStorage.getItem('greenhub-pro');
+    return saved ? JSON.parse(saved) : generateProObjectives();
+  });
   
   // États météo
   const [weather, setWeather] = useState(null);
@@ -1557,6 +1603,206 @@ export default function App() {
     
     setWeatherAlerts(alerts);
   };
+
+  // ═══ FONCTIONS SYSTÈME DE JEU ═══════════════════════════════════════════════
+  
+  // Générer 3 quêtes quotidiennes aléatoires
+  const generateDailyQuests = () => {
+    const questTypes = [
+      { type: 'water', text: '💧 Arrosez 3 plants aujourd\'hui', target: 3, reward: 50 },
+      { type: 'plant', text: '🌱 Semez un nouveau légume', target: 1, reward: 100 },
+      { type: 'photo', text: '📸 Prenez une photo d\'un de vos plants', target: 1, reward: 25 },
+      { type: 'harvest', text: '🧺 Récoltez un plant mûr', target: 1, reward: 75 },
+      { type: 'companion', text: '🤝 Plantez un combo compagnon (Tomate+Basilic)', target: 1, reward: 150 },
+      { type: 'moon', text: '🌙 Semez selon la phase lunaire', target: 1, reward: 100 },
+      { type: 'variety', text: '🥗 Plantez 3 variétés différentes', target: 3, reward: 125 },
+    ];
+    
+    // Sélectionner 3 quêtes aléatoires
+    const shuffled = [...questTypes].sort(() => Math.random() - 0.5);
+    const selected = shuffled.slice(0, 3).map((q, i) => ({
+      id: `quest-${Date.now()}-${i}`,
+      ...q,
+      completed: false,
+      progress: 0,
+    }));
+    
+    return {
+      quests: selected,
+      lastUpdate: new Date().toISOString()
+    };
+  };
+  
+  // Compléter une quête
+  const completeQuest = (questId) => {
+    setDailyQuests(prev => {
+      const updated = prev.map(q => 
+        q.id === questId ? { ...q, completed: true, progress: q.target } : q
+      );
+      const quest = prev.find(q => q.id === questId);
+      if (quest && !quest.completed) {
+        setScore(s => {
+          const newScore = s + quest.reward;
+          // Level up check
+          const newLevel = Math.floor(newScore / 500) + 1;
+          if (newLevel > level) {
+            setLevel(newLevel);
+            showToast(`🎉 Niveau ${newLevel} atteint !`, 'success');
+          }
+          return newScore;
+        });
+        showToast(`✅ Quête complétée ! +${quest.reward} pts`, 'success');
+      }
+      return updated;
+    });
+  };
+  
+  // Débloquer une carte de plante
+  const unlockCard = (plantId) => {
+    if (!collectedCards.includes(plantId)) {
+      setCollectedCards(prev => {
+        const updated = [...prev, plantId];
+        localStorage.setItem('greenhub-cards', JSON.stringify(updated));
+        const plant = PLANTS_DB.find(p => p.id === plantId);
+        showToast(`🎴 Carte débloquée : ${plant?.name || plantId} !`, 'success');
+        // Bonus première fois
+        setScore(s => s + 50);
+        return updated;
+      });
+    }
+  };
+  
+  // Détecter les combos de compagnonnage actifs
+  const detectCompanionBonuses = useMemo(() => {
+    const bonuses = [];
+    const activePlants = new Set();
+    
+    // Rassembler tous les plants des serres
+    serres.forEach(serre => {
+      serre.alveoles.forEach(alv => {
+        if (alv?.plantId) activePlants.add(alv.plantId);
+      });
+    });
+    
+    // Vérifier les combos connus
+    const plantList = Array.from(activePlants);
+    
+    // Combo Tomate + Basilic = Marinara
+    if (plantList.some(p => p.includes('tomate')) && plantList.some(p => p.includes('basilic'))) {
+      bonuses.push({ name: 'Marinara', icon: '🍝', bonus: 1.2, desc: 'Tomate + Basilic' });
+    }
+    
+    // Combo Carotte + Oignon = Mirepoix
+    if (plantList.some(p => p.includes('carotte')) && plantList.some(p => p.includes('oignon'))) {
+      bonuses.push({ name: 'Mirepoix', icon: '🥘', bonus: 1.15, desc: 'Carotte + Oignon' });
+    }
+    
+    // Combo Salade + Radis = Crudités
+    if (plantList.some(p => p.includes('laitue') || p.includes('salade')) 
+        && plantList.some(p => p.includes('radis'))) {
+      bonuses.push({ name: 'Crudités', icon: '🥗', bonus: 1.1, desc: 'Salade + Radis' });
+    }
+    
+    return bonuses;
+  }, [serres]);
+  
+  // Arbre de compétences
+  const skillTree = [
+    { id: 'extra_slot', name: 'Grille Étendue', icon: '➕', cost: 500, desc: '+2 alvéoles par serre' },
+    { id: 'zoom_expert', name: 'Loupe Pro', icon: '🔍', cost: 300, desc: 'Zoom x2 sur les plants' },
+    { id: 'weather_forecast', name: 'Météo 7J', icon: '📡', cost: 400, desc: 'Prévisions sur 7 jours' },
+    { id: 'growth_boost', name: 'Croissance Accélérée', icon: '⚡', cost: 600, desc: 'Plants mûrs 10% plus vite' },
+    { id: 'harvest_master', name: 'Maître Récolteur', icon: '🏆', cost: 800, desc: '+25% de rendement' },
+    { id: 'moon_reader', name: 'Lecture Lunaire', icon: '🌙', cost: 350, desc: 'Alertes phases lunaires' },
+  ];
+  
+  const unlockSkill = (skillId) => {
+    const skill = skillTree.find(s => s.id === skillId);
+    if (!skill || unlockedSkills.includes(skillId)) return;
+    
+    if (score >= skill.cost) {
+      setScore(s => s - skill.cost);
+      setUnlockedSkills(prev => {
+        const updated = [...prev, skillId];
+        localStorage.setItem('greenhub-skills', JSON.stringify(updated));
+        showToast(`✨ Compétence débloquée : ${skill.name} !`, 'success');
+        return updated;
+      });
+    } else {
+      showToast(`❌ Il vous manque ${skill.cost - score} points`, 'error');
+    }
+  };
+  
+  // Générer événement saisonnier
+  useEffect(() => {
+    const month = new Date().getMonth();
+    const events = [
+      { month: 2, name: 'Printemps Bio', icon: '🌸', bonus: 'x2 XP racines', type: 'spring' },
+      { month: 5, name: 'Été Canicule', icon: '☀️', bonus: 'Défi survie +30°', type: 'summer' },
+      { month: 8, name: 'Harvest Moon', icon: '🌕', bonus: 'Récoltes légendaires', type: 'autumn' },
+      { month: 11, name: 'Hivernage', icon: '❄️', bonus: 'Plants résistants', type: 'winter' },
+    ];
+    
+    const current = events.find(e => e.month === month);
+    setCurrentEvent(current || null);
+  }, []);
+  
+  // Générer objectifs Pro
+  const generateProObjectives = () => {
+    return [
+      { id: 'obj1', name: 'Première Récolte', target: 1, current: 0, unit: 'kg', reward: 200 },
+      { id: 'obj2', name: 'Jardinier Assidu', target: 10, current: 0, unit: 'plants', reward: 500 },
+      { id: 'obj3', name: 'Maître Compagnonnage', target: 3, current: 0, unit: 'combos', reward: 750 },
+      { id: 'obj4', name: 'Récolte de Tomates', target: 5, current: 0, unit: 'kg', reward: 300 },
+      { id: 'obj5', name: 'Collectionneur', target: 10, current: collectedCards.length, unit: 'cartes', reward: 1000 },
+    ];
+  };
+  
+  // Vérifier et mettre à jour le streak
+  useEffect(() => {
+    const today = new Date().toDateString();
+    const lastActive = gardenStreak.lastActive ? new Date(gardenStreak.lastActive).toDateString() : null;
+    
+    if (lastActive && lastActive !== today) {
+      const yesterday = new Date();
+      yesterday.setDate(yesterday.getDate() - 1);
+      
+      if (lastActive === yesterday.toDateString()) {
+        // Streak continue
+        setGardenStreak(prev => {
+          const updated = { count: prev.count + 1, lastActive: new Date().toISOString() };
+          localStorage.setItem('greenhub-streak', JSON.stringify(updated));
+          // Bonus streak
+          if (updated.count % 7 === 0) {
+            showToast(`🔥 Streak ${updated.count} jours ! Bonus x2 aujourd'hui`, 'success');
+            setScore(s => s + 100);
+          }
+          return updated;
+        });
+      } else if (lastActive !== today) {
+        // Streak cassé
+        setGardenStreak({ count: 1, lastActive: new Date().toISOString() });
+        localStorage.setItem('greenhub-streak', JSON.stringify({ count: 1, lastActive: new Date().toISOString() }));
+      }
+    }
+  }, [gardenStreak.lastActive]);
+  
+  // Mettre à jour streak quand on fait une action
+  const updateActivity = () => {
+    setGardenStreak(prev => {
+      const updated = { ...prev, lastActive: new Date().toISOString() };
+      localStorage.setItem('greenhub-streak', JSON.stringify(updated));
+      return updated;
+    });
+  };
+  
+  // Sauvegarder quêtes quotidiennement
+  useEffect(() => {
+    localStorage.setItem('greenhub-quests', JSON.stringify({ 
+      quests: dailyQuests, 
+      lastUpdate: new Date().toISOString() 
+    }));
+  }, [dailyQuests]);
 
   const [isDarkMode, setIsDarkMode] = useState(() => {
     const hour = new Date().getHours();
@@ -1661,10 +1907,58 @@ export default function App() {
       }
       return { ...s, alveoles, alveoleData };
     }));
+    
+    // Débloquer la carte automatiquement
+    unlockCard(plant.id);
+    
+    // Mise à jour des quêtes
+    setDailyQuests(prev => prev.map(q => {
+      if (q.completed) return q;
+      
+      // Quête "planter un légume"
+      if (q.type === 'plant') {
+        return { ...q, progress: q.progress + 1 };
+      }
+      
+      // Quête "sous la lune"
+      if (q.type === 'moon') {
+        const moon = getMoonPhase();
+        if (moon.sow) return { ...q, progress: q.progress + 1 };
+      }
+      
+      // Quête "varieties différentes"
+      if (q.type === 'variety') {
+        // Compter les variétés uniques dans les serres
+        const uniqueVarieties = new Set();
+        serres.forEach(s => {
+          s.alveoles.forEach(alv => {
+            if (alv?.plantId) uniqueVarieties.add(alv.plantId);
+          });
+        });
+        // +1 pour la nouvelle plante si c'est une nouvelle variété
+        const dbPlant = PLANTS_DB.find(p => p.id === plant.id);
+        if (dbPlant) uniqueVarieties.add(plant.id);
+        return { ...q, progress: uniqueVarieties.size };
+      }
+      
+      return q;
+    }));
+    
+    // Mettre à jour l'activité pour le streak
+    updateActivity();
+    
+    // Vérifier les objectifs Pro
+    setProObjectives(prev => prev.map(obj => {
+      if (obj.id === 'obj2' && obj.current < obj.target) {
+        return { ...obj, current: Math.min(obj.current + qty, obj.target) };
+      }
+      return obj;
+    }));
+    
     setScore(s => { const n = s + qty * 10; setLevel(Math.floor(n / 100) + 1); return n; });
     showToast(`🌱 ${qty} × ${plant.name} semés !`);
     setTab('serres');
-  }, []);
+  }, [serres, unlockCard, score, gardenStreak]);
 
   const handleTransplant = useCallback((serreId, alvIdx) => {
     const metrics = getGardenMetrics(gardenArea);
@@ -1895,6 +2189,18 @@ export default function App() {
           <div style={{ fontSize: 20 }}>🧺</div>
           <div style={{ fontSize: 10, color: tab === 'recoltes' ? '#2ecc71' : 'rgba(255,255,255,0.3)' }}>Récoltes</div>
         </div>
+        <div onClick={() => { setShowQuests(true); }} style={{ textAlign: 'center', cursor: 'pointer' }}>
+          <div style={{ fontSize: 20 }}>🎯</div>
+          <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.3)' }}>Quêtes</div>
+        </div>
+        <div onClick={() => { setShowCollection(true); }} style={{ textAlign: 'center', cursor: 'pointer' }}>
+          <div style={{ fontSize: 20 }}>🎴</div>
+          <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.3)' }}>Collection</div>
+        </div>
+        <div onClick={() => { setShowSkillTree(true); }} style={{ textAlign: 'center', cursor: 'pointer' }}>
+          <div style={{ fontSize: 20 }}>🌟</div>
+          <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.3)' }}>Talents</div>
+        </div>
         <div onClick={() => { setShowEncyclopedia(true); }} style={{ textAlign: 'center', cursor: 'pointer' }}>
           <div style={{ fontSize: 20 }}>📚</div>
           <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.3)' }}>Encyclo</div>
@@ -2028,6 +2334,216 @@ export default function App() {
       {showCalendar && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', backdropFilter: 'blur(8px)', zIndex: 100, padding: 20, overflowY: 'auto' }}>
           <CalendarScreen onClose={() => setShowCalendar(false)} />
+        </div>
+      )}
+
+      {/* Quests Modal */}
+      {showQuests && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.9)', backdropFilter: 'blur(10px)', zIndex: 100, padding: 20, overflowY: 'auto' }}>
+          <div style={{ maxWidth: 500, margin: '0 auto' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+              <div style={{ fontSize: 20, fontWeight: 700 }}>📋 Quêtes Quotidiennes</div>
+              <div onClick={() => setShowQuests(false)} style={{ fontSize: 24, cursor: 'pointer', color: 'rgba(255,255,255,0.5)' }}>×</div>
+            </div>
+            
+            <div style={{ marginBottom: 16, padding: 12, background: 'rgba(46,204,113,0.1)', borderRadius: 10 }}>
+              <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.6)' }}>
+                🔥 Streak : {gardenStreak.count} jours | Score : {score} pts
+              </div>
+            </div>
+            
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              {dailyQuests.map(quest => (
+                <div key={quest.id} style={{ 
+                  padding: 16, 
+                  background: quest.completed ? 'rgba(46,204,113,0.15)' : 'rgba(255,255,255,0.05)', 
+                  border: `2px solid ${quest.completed ? '#2ecc71' : 'rgba(255,255,255,0.1)'}`,
+                  borderRadius: 12,
+                  opacity: quest.completed ? 0.7 : 1
+                }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                    <div style={{ fontSize: 14, fontWeight: 600 }}>{quest.text}</div>
+                    <div style={{ fontSize: 12, color: quest.completed ? '#2ecc71' : '#f39c12' }}>
+                      {quest.completed ? '✅ Complété' : `+${ quest.reward } pts`}
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <div style={{ flex: 1, height: 6, background: 'rgba(255,255,255,0.1)', borderRadius: 3 }}>
+                      <div style={{ 
+                        width: `${(quest.progress / quest.target) * 100}%`, 
+                        height: '100%', 
+                        background: quest.completed ? '#2ecc71' : '#f39c12',
+                        borderRadius: 3,
+                        transition: 'width 0.3s'
+                      }} />
+                    </div>
+                    <div style={{ fontSize: 11 }}>{quest.progress}/{quest.target}</div>
+                  </div>
+                  {!quest.completed && (
+                    <button 
+                      onClick={() => completeQuest(quest.id)}
+                      style={{
+                        marginTop: 10,
+                        padding: '8px 16px',
+                        background: '#2ecc71',
+                        border: 'none',
+                        borderRadius: 8,
+                        color: '#0d1117',
+                        fontWeight: 600,
+                        cursor: 'pointer',
+                        fontSize: 12
+                      }}
+                    >
+                      Valider la quête
+                    </button>
+                  )}
+                </div>
+              ))}
+            </div>
+            
+            {/* Événement saisonnier */}
+            {currentEvent && (
+              <div style={{ marginTop: 20, padding: 16, background: 'rgba(255,255,255,0.08)', borderRadius: 12, border: '2px solid #f39c12' }}>
+                <div style={{ fontSize: 16, fontWeight: 700, marginBottom: 8 }}>
+                  {currentEvent.icon} Événement Actuel : {currentEvent.name}
+                </div>
+                <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.7)' }}>
+                  Bonus : {currentEvent.bonus}
+                </div>
+              </div>
+            )}
+            
+            {/* Objectifs Pro */}
+            <div style={{ marginTop: 20 }}>
+              <div style={{ fontSize: 16, fontWeight: 700, marginBottom: 12 }}>🏆 Mode Pro</div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                {proObjectives.map(obj => (
+                  <div key={obj.id} style={{ padding: 12, background: 'rgba(255,255,255,0.03)', borderRadius: 10 }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
+                      <span>{obj.name}</span>
+                      <span style={{ color: '#2ecc71' }}>{obj.current}/{obj.target} {obj.unit}</span>
+                    </div>
+                    <div style={{ marginTop: 6, height: 4, background: 'rgba(255,255,255,0.1)', borderRadius: 2 }}>
+                      <div style={{ 
+                        width: `${Math.min((obj.current / obj.target) * 100, 100)}%`, 
+                        height: '100%', 
+                        background: '#2ecc71',
+                        borderRadius: 2 
+                      }} />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Collection Modal */}
+      {showCollection && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.95)', backdropFilter: 'blur(10px)', zIndex: 100, padding: 20, overflowY: 'auto' }}>
+          <div style={{ maxWidth: 600, margin: '0 auto' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+              <div style={{ fontSize: 20, fontWeight: 700 }}>🎴 Collection ({collectedCards.length}/{PLANTS_DB.length})</div>
+              <div onClick={() => setShowCollection(false)} style={{ fontSize: 24, cursor: 'pointer', color: 'rgba(255,255,255,0.5)' }}>×</div>
+            </div>
+            
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(120px, 1fr))', gap: 12 }}>
+              {PLANTS_DB.map(plant => {
+                const isCollected = collectedCards.includes(plant.id);
+                return (
+                  <div 
+                    key={plant.id} 
+                    onClick={() => isCollected && showToast(`${plant.name} - Déjà dans votre collection !`)}
+                    style={{ 
+                      padding: 16, 
+                      background: isCollected ? plant.color + '20' : 'rgba(255,255,255,0.05)',
+                      border: `2px solid ${isCollected ? plant.color : 'rgba(255,255,255,0.1)'}`,
+                      borderRadius: 12,
+                      textAlign: 'center',
+                      opacity: isCollected ? 1 : 0.4,
+                      cursor: isCollected ? 'default' : 'not-allowed',
+                      transition: 'all 0.2s'
+                    }}
+                  >
+                    <div style={{ fontSize: 32, filter: isCollected ? 'none' : 'grayscale(100%)' }}>{plant.icon}</div>
+                    <div style={{ fontSize: 11, marginTop: 6, fontWeight: 600 }}>{plant.name}</div>
+                    <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.5)' }}>{plant.variety}</div>
+                    {!isCollected && <div style={{ fontSize: 9, marginTop: 4, color: '#e74c3c' }}>🔒 Verrouillé</div>}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Skill Tree Modal */}
+      {showSkillTree && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.95)', backdropFilter: 'blur(10px)', zIndex: 100, padding: 20, overflowY: 'auto' }}>
+          <div style={{ maxWidth: 500, margin: '0 auto' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+              <div style={{ fontSize: 20, fontWeight: 700 }}>🌟 Arbre de Compétences</div>
+              <div onClick={() => setShowSkillTree(false)} style={{ fontSize: 24, cursor: 'pointer', color: 'rgba(255,255,255,0.5)' }}>×</div>
+            </div>
+            
+            <div style={{ marginBottom: 20, padding: 12, background: 'rgba(46,204,113,0.1)', borderRadius: 10, textAlign: 'center' }}>
+              <div style={{ fontSize: 24, fontWeight: 800, color: '#2ecc71' }}>{score}</div>
+              <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.6)' }}>Points disponibles</div>
+            </div>
+            
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              {skillTree.map(skill => {
+                const isUnlocked = unlockedSkills.includes(skill.id);
+                const canAfford = score >= skill.cost;
+                
+                return (
+                  <div 
+                    key={skill.id}
+                    style={{ 
+                      padding: 16, 
+                      background: isUnlocked ? 'rgba(46,204,113,0.15)' : canAfford ? 'rgba(255,255,255,0.08)' : 'rgba(255,255,255,0.03)',
+                      border: `2px solid ${isUnlocked ? '#2ecc71' : canAfford ? '#f39c12' : 'rgba(255,255,255,0.1)'}`,
+                      borderRadius: 12,
+                      opacity: isUnlocked ? 1 : 0.8
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                      <div style={{ fontSize: 28 }}>{skill.icon}</div>
+                      <div style={{ flex: 1 }}>
+                        <div style={{ fontSize: 14, fontWeight: 700 }}>{skill.name}</div>
+                        <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.6)' }}>{skill.desc}</div>
+                      </div>
+                      <div style={{ textAlign: 'right' }}>
+                        <div style={{ fontSize: 14, fontWeight: 700, color: isUnlocked ? '#2ecc71' : canAfford ? '#f39c12' : '#e74c3c' }}>
+                          {isUnlocked ? '✓ Débloqué' : `${skill.cost} pts`}
+                        </div>
+                      </div>
+                    </div>
+                    {!isUnlocked && (
+                      <button
+                        onClick={() => unlockSkill(skill.id)}
+                        disabled={!canAfford}
+                        style={{
+                          marginTop: 12,
+                          width: '100%',
+                          padding: '10px',
+                          background: canAfford ? '#2ecc71' : 'rgba(255,255,255,0.1)',
+                          border: 'none',
+                          borderRadius: 8,
+                          color: canAfford ? '#0d1117' : 'rgba(255,255,255,0.3)',
+                          fontWeight: 600,
+                          cursor: canAfford ? 'pointer' : 'not-allowed'
+                        }}
+                      >
+                        {canAfford ? 'Débloquer' : 'Points insuffisants'}
+                      </button>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
         </div>
       )}
 
