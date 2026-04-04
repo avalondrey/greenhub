@@ -338,6 +338,24 @@ export class GridDeck {
     return this.placedObjects;
   }
 
+  clearAll() {
+    // Supprime tous les objets du jardin
+    [...this.placedObjects].forEach(obj => {
+      this.scene.remove(obj.group);
+      obj.group.traverse(child => {
+        if (child.geometry) child.geometry.dispose();
+      });
+    });
+    this.placedObjects = [];
+    this.clearSelection();
+    this.clearHighlight();
+    this._clearRectPreview();
+    try { localStorage.removeItem('greenhub_grid_state'); } catch(e) {}
+    try { localStorage.removeItem('greenhub_photos'); } catch(e) {}
+    this.objectPhotos = {};
+    console.log('🗑️ GridDeck: tous les objets supprimés');
+  }
+
   // ─── RECTANGLE TOOL ─────────────────────────────────────────────────────────
 
   /**

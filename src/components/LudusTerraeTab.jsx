@@ -147,6 +147,13 @@ export default function LudusTerraeTab({ onOpenSerreBois }) {
     if (appRef.current) appRef.current.resetCamera();
   };
 
+  const handleClearAll = () => {
+    if (!appRef.current) return;
+    if (window.confirm('🗑️ Supprimer TOUS les objets du jardin (arbres, clôtures, serres, cailloux) ?')) {
+      appRef.current.clearAllGrid();
+    }
+  };
+
   const handleSeason = (s) => {
     if (appRef.current) appRef.current.setSeason(s);
     setActiveSeason(s);
@@ -255,6 +262,7 @@ export default function LudusTerraeTab({ onOpenSerreBois }) {
         <button style={btnStyle(false)} onClick={handleChat}>🤖 Chat IA</button>
         <button style={btnStyle(isGreenhouseMode)} onClick={handleToggleGreenhouse}>🏡 Serre Réelle</button>
         <button style={btnStyle(false)} onClick={handleResetCam}>🔄 Reset Cam</button>
+        <button style={{ ...btnStyle(false), borderColor: '#e74c3c', color: '#ff6b6b' }} onClick={handleClearAll}>🗑️ Tout supprimer</button>
       </div>
 
       {/* ── Hint ── */}

@@ -1514,6 +1514,15 @@ export class RealisticApp {
         return { ...this.gameState };
     }
 
+    clearAllGrid() {
+        if (this.gridDeck) {
+            this.gridDeck.clearAll();
+            if (window.showNotification) {
+                window.showNotification('🗑️ Tous les objets du jardin ont été supprimés');
+            }
+        }
+    }
+
     _saveGridDeckState() {
         if (!this.gridDeck) return;
         try {
