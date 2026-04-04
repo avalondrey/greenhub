@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "dev:playground": "vite --port 5175",
     "build": "vite build",
     "preview": "vite preview",
     "deploy:vercel": "vercel --prod",
@@ -15,7 +16,8 @@
     "@dnd-kit/sortable": "^10.0.0",
     "canvas": "^3.2.2",
     "react": "^19.2.0",
-    "react-dom": "^19.2.0"
+    "react-dom": "^19.2.0",
+    "three": "^0.183.2"
   },
   "devDependencies": {
     "@vitejs/plugin-react": "^4.7.0",
