@@ -2,6 +2,7 @@ import { useState, useCallback, useEffect, useRef, useMemo } from 'react';
 import { PLANTS_DB, PLANTS_SIMPLE, generateTasks, estimateYield } from './db/plants.js';
 import useTileRenderer from './hooks/useTileRenderer.js';
 import useRealGardenRenderer from './hooks/useRealGardenRenderer.js';
+import LudusTerraeTab from './components/LudusTerraeTab.jsx';
 
 // ─── GARDEN OBJECTS DATABASE ──────────────────────────────────────────────────
 // Objets du jardin réel : arbres, haies, arbustes, petits fruits, cabanons, serres
@@ -59,11 +60,19 @@ const GARDEN_OBJECTS_DB = {
   structures: [
     { id: 'shed_wood', name: 'Cabanon Bois', emoji: '🏠', type: 'structure', structureType: 'shed', color: '#8B4513', spanCells: 6, description: 'Cabanon en bois naturel', width: 2, height: 2 },
     { id: 'shed_grey', name: 'Cabanon Métal', emoji: '🏚️', type: 'structure', structureType: 'shed', color: '#696969', spanCells: 6, description: 'Cabanon en tôle grise', width: 2, height: 2 },
-    { id: 'greenhouse_small', name: 'Mini Serre', emoji: '🏡', type: 'structure', structureType: 'greenhouse', color: '#98FB98', spanCells: 6, description: 'Serre de jardin 6m²', width: 2, height: 2 },
-    { id: 'greenhouse_large', name: 'Grande Serre', emoji: '🏢', type: 'structure', structureType: 'greenhouse', color: '#90EE90', spanCells: 12, description: 'Serre professionnelle 12m²', width: 3, height: 2 },
-    { id: 'pond', name: 'Mare/Bassin', emoji: '💧', type: 'structure', structureType: 'pond', color: '#4169E1', spanCells: 4, description: 'Point d\'eau décoratif', width: 2, height: 1 },
+    { id: 'greenhouse_wood', name: 'Serre en Bois', emoji: '🪵', type: 'structure', structureType: 'wooden_greenhouse', color: '#A0522D', spanCells: 12, description: 'Serre en bois avec plan de travail et étagères', width: 3, height: 2, hasWorkbench: true, shelves: 4, miniSerreSlots: 6 },
     { id: 'compost', name: 'Compostier', emoji: '🟫', type: 'structure', structureType: 'compost', color: '#654321', spanCells: 2, description: 'Bac à compost', width: 1, height: 1 },
     { id: 'rain_barrel', name: 'Cuve de Récupération', emoji: '🪣', type: 'structure', structureType: 'barrel', color: '#708090', spanCells: 1, description: 'Récupération d\'eau de pluie', width: 1, height: 1 },
+  ],
+
+  // CLÔTURES
+  fences: [
+    { id: 'fence_wood', name: 'Clôture Bois', emoji: '🪵', type: 'fence', fenceType: 'wood', color: '#8B4513', description: 'Clôture en bois naturel', style: 'planks' },
+    { id: 'fence_composite', name: 'Clôture Composite', emoji: '🪵', type: 'fence', fenceType: 'composite', color: '#6B5B4F', description: 'Clôture composite imitation bois', style: 'planks' },
+    { id: 'fence_metallic', name: 'Grillage Rigid', emoji: '🔗', type: 'fence', fenceType: 'metallic', color: '#708090', description: 'Grillage rigide sur poteaux', style: 'mesh' },
+    { id: 'fence_wire', name: 'Fil de Fer', emoji: '⛓️', type: 'fence', fenceType: 'wire', color: '#4a4a4a', description: 'Fil de fer tendu', style: 'wire' },
+    { id: 'fence_picket', name: 'Piquet', emoji: '🏌️', type: 'fence', fenceType: 'picket', color: '#d4a574', description: 'Clôture à picots', style: 'picket' },
+    { id: 'fence_stone', name: 'Muret Pierre', emoji: '🧱', type: 'fence', fenceType: 'stone', color: '#9E9E9E', description: 'Muret en pierre', style: 'wall' },
   ],
 };
 
@@ -74,6 +83,7 @@ const ALL_GARDEN_OBJECTS = [
   ...GARDEN_OBJECTS_DB.shrubs,
   ...GARDEN_OBJECTS_DB.small_fruits,
   ...GARDEN_OBJECTS_DB.structures,
+  ...GARDEN_OBJECTS_DB.fences,
 ];
 
 // ─── CONSTANTS ────────────────────────────────────────────────────────────────
@@ -504,6 +514,523 @@ function SerreScreen({ serres, onAddSerre, onTransplant, onRemoveSerreSeed, onMo
   );
 }
 
+// ─── SERRE EN BOIS MODAL ────────────────────────────────────────────────────
+// Modal pour voir et gérer le contenu d'une serre en bois sur le jardin
+
+function SerreBoisModal({ serreBois, chambres, setChambres, coins, setCoins, showToast, onClose }) {
+  // Récupérer ou initialiser les mini-serres de cette serre
+  const [miniSerres, setMiniSerres] = useState(() => {
+    return serreBois.miniSerres || [];
+  });
+
+  const SHELVES = 4;
+  const SLOTS_PER_SHELF = 6;
+
+  // Ajouter une mini-serre (achat 1€)
+  const buyMiniSerre = () => {
+    if (coins < 1) {
+      showToast('❌ Pas assez de pièces !', 'error');
+      return;
+    }
+    setCoins(c => c - 1);
+    const newSerre = {
+      id: uid(),
+      name: `Mini-serre ${miniSerres.length + 1}`,
+      alveoles: Array(SERRE_COLS * SERRE_ROWS).fill(null),
+      alveoleData: {},
+    };
+    setMiniSerres(prev => [...prev, newSerre]);
+    showToast('📦 Mini-serre ajoutée !');
+  };
+
+  // Supprimer une mini-serre
+  const removeMiniSerre = (idx) => {
+    setMiniSerres(prev => prev.filter((_, i) => i !== idx));
+    showToast('🗑️ Mini-serre retirée');
+  };
+
+  // Actions sur les alvéoles d'une mini-serre
+  const moveSerreSeed = (serreIdx, fromIdx, toIdx) => {
+    setMiniSerres(prev => prev.map((serre, si) => {
+      if (si !== serreIdx) return serre;
+      const alveoles = [...serre.alveoles];
+      [alveoles[fromIdx], alveoles[toIdx]] = [alveoles[toIdx], alveoles[fromIdx]];
+      const alveoleData = { ...(serre.alveoleData || {}) };
+      if (alveoleData[fromIdx] && alveoleData[toIdx]) {
+        [alveoleData[fromIdx], alveoleData[toIdx]] = [alveoleData[toIdx], alveoleData[fromIdx]];
+      } else if (alveoleData[fromIdx]) {
+        alveoleData[toIdx] = alveoleData[fromIdx];
+        delete alveoleData[fromIdx];
+      }
+      return { ...serre, alveoles, alveoleData };
+    }));
+  };
+
+  const removeSerreSeed = (serreIdx, idx) => {
+    setMiniSerres(prev => prev.map((serre, si) => {
+      if (si !== serreIdx) return serre;
+      const alveoles = [...serre.alveoles];
+      alveoles[idx] = null;
+      const alveoleData = { ...(serre.alveoleData || {}) };
+      delete alveoleData[idx];
+      return { ...serre, alveoles, alveoleData };
+    }));
+    showToast('🗑️ Plant retiré');
+  };
+
+  const [selectedSerreIdx, setSelectedSerreIdx] = useState(null);
+  const [selectedAlvIdx, setSelectedAlvIdx] = useState(null);
+  const [movingFromIdx, setMovingFromIdx] = useState(null);
+
+  const handleCellClick = (serreIdx, idx) => {
+    const serre = miniSerres[serreIdx];
+    if (!serre) return;
+    const alv = serre.alveoles[idx];
+
+    if (movingFromIdx !== null) {
+      if (movingFromIdx.serreIdx !== serreIdx || movingFromIdx.idx !== idx) {
+        moveSerreSeed(serreIdx, movingFromIdx.idx, idx);
+      }
+      setMovingFromIdx(null);
+      return;
+    }
+
+    if (alv) {
+      setSelectedSerreIdx(serreIdx);
+      setSelectedAlvIdx(idx);
+    } else {
+      setSelectedSerreIdx(null);
+      setSelectedAlvIdx(null);
+    }
+  };
+
+  const tick = useRealtimeGrowth();
+
+  // Organiser les mini-serres sur les étagères
+  const totalSlots = SHELVES * SLOTS_PER_SHELF;
+  const occupiedSlots = miniSerres.length;
+  const freeSlots = totalSlots - occupiedSlots;
+
+  return (
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.9)', backdropFilter: 'blur(10px)', zIndex: 120, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+      <div style={{ background: '#1a1f2e', border: '2px solid #A0522D', borderRadius: 16, padding: 24, width: '100%', maxWidth: 700, maxHeight: '90vh', overflowY: 'auto' }}>
+
+        {/* Header */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <div style={{ fontSize: 32 }}>🪵</div>
+            <div>
+              <div style={{ fontSize: 18, fontWeight: 700, color: '#A0522D' }}>{serreBois.name || 'Serre en Bois'}</div>
+              <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)' }}>
+                {SHELVES} étagères · {occupiedSlots}/{totalSlots} mini-serres
+              </div>
+            </div>
+          </div>
+          <div onClick={onClose} style={{ fontSize: 28, cursor: 'pointer', color: 'rgba(255,255,255,0.5)' }}>×</div>
+        </div>
+
+        {/* Solde */}
+        <div style={{ padding: '8px 12px', background: 'rgba(255,215,0,0.1)', border: '1px solid rgba(255,215,0,0.3)', borderRadius: 8, marginBottom: 16, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <span style={{ color: 'rgba(255,255,255,0.6)', fontSize: 12 }}>Ton solde</span>
+          <span style={{ color: '#ffd700', fontSize: 16, fontWeight: 700 }}>{coins}€</span>
+        </div>
+
+        {/* Message mode déplacement */}
+        {movingFromIdx !== null && (
+          <div style={{ marginBottom: 12, padding: '8px 12px', background: 'rgba(46,204,113,0.15)', border: '1px solid rgba(46,204,113,0.4)', borderRadius: 8, fontSize: 12, color: '#2ecc71' }}>
+            📍 Mode déplacement — clique sur une alvéole cible
+          </div>
+        )}
+
+        {/* Contenu */}
+        {miniSerres.length === 0 ? (
+          <div style={{ textAlign: 'center', padding: '40px 20px', color: 'rgba(255,255,255,0.4)' }}>
+            <div style={{ fontSize: 48, marginBottom: 12 }}>📦</div>
+            <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 8 }}>Aucune mini-serre</div>
+            <div style={{ fontSize: 12 }}>Achète des mini-serres pour les placer sur les étagères</div>
+          </div>
+        ) : (
+          <>
+            {/* Étiquettes étagères */}
+            {Array.from({ length: SHELVES }).map((_, shelfIdx) => {
+              const shelfSerres = miniSerres.slice(shelfIdx * SLOTS_PER_SHELF, (shelfIdx + 1) * SLOTS_PER_SHELF);
+              const shelfOccupied = miniSerres.filter((_, i) => Math.floor(i / SLOTS_PER_SHELF) === shelfIdx).length;
+              return (
+                <div key={shelfIdx} style={{ marginBottom: 16 }}>
+                  <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.3)', marginBottom: 6, display: 'flex', justifyContent: 'space-between' }}>
+                    <span>📚 Étagère {shelfIdx + 1}</span>
+                    <span>{shelfOccupied}/{SLOTS_PER_SHELF} places</span>
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10 }}>
+                    {shelfSerres.map((serre, idxInShelf) => {
+                      const globalIdx = shelfIdx * SLOTS_PER_SHELF + idxInShelf;
+                      const isSelected = selectedSerreIdx === globalIdx;
+                      const movingIdx = movingFromIdx?.serreIdx === globalIdx ? movingFromIdx.idx : null;
+                      return (
+                        <div key={serre.id} style={{ background: 'rgba(160,82,45,0.1)', border: `2px solid ${isSelected ? '#2ecc71' : 'rgba(160,82,45,0.3)'}`, borderRadius: 10, padding: 8 }}>
+                          <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.5)', marginBottom: 4, textAlign: 'center' }}>
+                            {serre.name} · {serre.alveoles.filter(Boolean).length}/24
+                          </div>
+                          <IsometricMiniSerre
+                            serre={serre}
+                            selectedIdx={isSelected ? selectedAlvIdx : null}
+                            movingIdx={movingIdx}
+                            onCellClick={(idx) => handleCellClick(globalIdx, idx)}
+                          />
+                        </div>
+                      );
+                    })}
+                    {/* Slots vides sur cette étagère */}
+                    {Array.from({ length: SLOTS_PER_SHELF - shelfSerres.length }).map((_, emptyIdx) => (
+                      <div key={`empty-${emptyIdx}`} style={{ background: 'rgba(255,255,255,0.03)', border: '2px dashed rgba(255,255,255,0.1)', borderRadius: 10, padding: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 80 }}>
+                        <span style={{ fontSize: 24, opacity: 0.2 }}>📦</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              );
+            })}
+          </>
+        )}
+
+        {/* Panneau actions mini-serre sélectionnée */}
+        {selectedSerreIdx !== null && selectedAlvIdx !== null && (
+          <div style={{ marginTop: 12, padding: 12, background: 'rgba(46,204,113,0.08)', border: '1px solid rgba(46,204,113,0.3)', borderRadius: 10 }}>
+            {(() => {
+              const serre = miniSerres[selectedSerreIdx];
+              if (!serre) return null;
+              const alv = serre.alveoles[selectedAlvIdx];
+              const ad = serre.alveoleData?.[selectedAlvIdx];
+              const plant = alv ? PLANTS_SIMPLE.find(p => p.id === alv.plantId) : null;
+              const dbPlant = alv ? PLANTS_DB.find(p => p.id === alv.plantId) : null;
+              if (!plant || !dbPlant) return null;
+              const daysSinceSow = ad?.plantedDate ? Math.floor((Date.now() - new Date(ad.plantedDate).getTime()) / (1000 * 60 * 60 * 24)) : 0;
+              const stage = getGrowthStage(ad?.plantedDate, dbPlant.daysToMaturity || 60);
+              return (
+                <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                  <span style={{ fontSize: 28, transform: `scale(${stage.scale})`, display: 'inline-block' }}>{stage.emoji}</span>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontSize: 13, fontWeight: 700 }}>{plant.name}</div>
+                    <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.5)' }}>J+{daysSinceSow} · {dbPlant.daysToMaturity}j</div>
+                  </div>
+                  <div onClick={() => { setMovingFromIdx({ serreIdx: selectedSerreIdx, idx: selectedAlvIdx }); setSelectedSerreIdx(null); setSelectedAlvIdx(null); }} style={{ padding: '6px 10px', borderRadius: 6, background: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.2)', fontSize: 11, cursor: 'pointer' }}>📍 Déplacer</div>
+                  <div onClick={() => { removeSerreSeed(selectedSerreIdx, selectedAlvIdx); setSelectedSerreIdx(null); setSelectedAlvIdx(null); }} style={{ padding: '6px 10px', borderRadius: 6, background: 'rgba(220,53,69,0.2)', border: '1px solid rgba(220,53,69,0.4)', fontSize: 11, cursor: 'pointer' }}>🗑️</div>
+                </div>
+              );
+            })()}
+          </div>
+        )}
+
+        {/* Bouton achat mini-serre */}
+        <div style={{ marginTop: 16, display: 'flex', gap: 8, justifyContent: 'center' }}>
+          <div onClick={freeSlots > 0 ? buyMiniSerre : undefined} style={{ padding: '10px 20px', borderRadius: 10, background: freeSlots > 0 ? 'rgba(46,204,113,0.2)' : 'rgba(255,255,255,0.05)', border: `2px solid ${freeSlots > 0 ? 'rgba(46,204,113,0.5)' : 'rgba(255,255,255,0.1)'}`, color: freeSlots > 0 ? '#2ecc71' : 'rgba(255,255,255,0.3)', fontSize: 13, fontWeight: 700, cursor: freeSlots > 0 ? 'pointer' : 'not-allowed' }}>
+            📦 Acheter mini-serre (1€) {freeSlots === 0 ? '— Étagères pleines' : ''}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── CHAMBRES DE CULTURE SCREEN ────────────────────────────────────────────
+// Chaque chambre contient 6 mini-serres de 24 alvéoles chacune (144 total/chambre)
+// Indépendant de la météo (intérieur)
+
+const CHAMBRE_PRICE = 3; // Prix en euros
+
+function ChambresScreen({ chambres, setChambres, coins, setCoins, showToast }) {
+  const [showShop, setShowShop] = useState(false);
+  const [selectedChambre, setSelectedChambre] = useState(null);
+  const [selectedSerreIdx, setSelectedSerreIdx] = useState(null);
+  const [movingFromIdx, setMovingFromIdx] = useState(null);
+  const tick = useRealtimeGrowth();
+
+  // Créer une nouvelle chambre (6 mini-serres vides)
+  const buyChambre = () => {
+    if (coins < CHAMBRE_PRICE) {
+      showToast('❌ Il faut 3€ pour acheter une chambre !', 'error');
+      return;
+    }
+    setCoins(c => c - CHAMBRE_PRICE);
+    const newChambre = {
+      id: uid(),
+      name: `Chambre ${chambres.length + 1}`,
+      miniSerres: Array(6).fill(null).map((_, i) => ({
+        id: uid(),
+        name: `Mini-serre ${i + 1}`,
+        alveoles: Array(SERRE_COLS * SERRE_ROWS).fill(null),
+        alveoleData: {},
+      })),
+    };
+    setChambres(c => [...c, newChambre]);
+    showToast(`🚪 Chambre "${newChambre.name}" créée !`);
+  };
+
+  // Acheter une nouvelle mini-serre dans une chambre
+  const buyMiniSerre = (chambreId) => {
+    if (coins < 1) {
+      showToast('❌ Pas assez de pièces !', 'error');
+      return;
+    }
+    setCoins(c => c - 1);
+    setChambres(prev => prev.map(ch => {
+      if (ch.id !== chambreId) return ch;
+      return {
+        ...ch,
+        miniSerres: [...ch.miniSerres, {
+          id: uid(),
+          name: `Mini-serre ${ch.miniSerres.length + 1}`,
+          alveoles: Array(SERRE_COLS * SERRE_ROWS).fill(null),
+          alveoleData: {},
+        }],
+      };
+    }));
+    showToast('🏠 Mini-serre ajoutée !');
+  };
+
+  // Déplacer un plant entre alvéoles
+  const moveSerreSeed = (chambreId, serreIdx, fromIdx, toIdx) => {
+    setChambres(prev => prev.map(ch => {
+      if (ch.id !== chambreId) return ch;
+      const miniSerres = [...ch.miniSerres];
+      const serre = { ...miniSerres[serreIdx] };
+      const alveoles = [...serre.alveoles];
+      [alveoles[fromIdx], alveoles[toIdx]] = [alveoles[toIdx], alveoles[fromIdx]];
+      // Swap alveoleData too
+      const alveoleData = { ...(serre.alveoleData || {}) };
+      if (alveoleData[fromIdx] && alveoleData[toIdx]) {
+        [alveoleData[fromIdx], alveoleData[toIdx]] = [alveoleData[toIdx], alveoleData[fromIdx]];
+      } else if (alveoleData[fromIdx]) {
+        alveoleData[toIdx] = alveoleData[fromIdx];
+        delete alveoleData[fromIdx];
+      }
+      serre.alveoles = alveoles;
+      serre.alveoleData = alveoleData;
+      miniSerres[serreIdx] = serre;
+      return { ...ch, miniSerres };
+    }));
+  };
+
+  // Supprimer un plant
+  const removeSerreSeed = (chambreId, serreIdx, idx) => {
+    setChambres(prev => prev.map(ch => {
+      if (ch.id !== chambreId) return ch;
+      const miniSerres = [...ch.miniSerres];
+      const serre = { ...miniSerres[serreIdx] };
+      const alveoles = [...serre.alveoles];
+      alveoles[idx] = null;
+      const alveoleData = { ...(serre.alveoleData || {}) };
+      delete alveoleData[idx];
+      serre.alveoles = alveoles;
+      serre.alveoleData = alveoleData;
+      miniSerres[serreIdx] = serre;
+      return { ...ch, miniSerres };
+    }));
+    showToast('🗑️ Plant retiré');
+  };
+
+  // Cliquer sur une alvéole
+  const handleCellClick = (chambreId, serreIdx, idx) => {
+    const chambre = chambres.find(c => c.id === chambreId);
+    if (!chambre) return;
+    const serre = chambre.miniSerres[serreIdx];
+    const alv = serre.alveoles[idx];
+
+    // Mode déplacement
+    if (movingFromIdx !== null) {
+      if (movingFromIdx.idx !== idx || movingFromIdx.serreIdx !== serreIdx) {
+        moveSerreSeed(chambreId, serreIdx, movingFromIdx.idx, idx);
+      }
+      setMovingFromIdx(null);
+      return;
+    }
+
+    if (alv) {
+      setSelectedChambre({ chambreId, serreIdx, idx });
+    } else {
+      setSelectedChambre(null);
+    }
+  };
+
+  // Rendu d'une mini-serre isométrique
+  const renderMiniSerre = (chambreId, serreIdx, serre) => {
+    const isSelected = selectedChambre?.chambreId === chambreId && selectedChambre?.serreIdx === serreIdx;
+    const movingIdx = movingFromIdx?.serreIdx === serreIdx ? movingFromIdx.idx : null;
+
+    return (
+      <div key={serre.id} style={{ marginBottom: 16 }}>
+        <div style={{ fontSize: 11, fontWeight: 600, color: 'rgba(255,255,255,0.6)', marginBottom: 6 }}>
+          📦 {serre.name} · {serre.alveoles.filter(Boolean).length}/24
+        </div>
+        <IsometricMiniSerre
+          serre={serre}
+          selectedIdx={isSelected ? selectedChambre.idx : null}
+          movingIdx={movingIdx}
+          onCellClick={(idx) => handleCellClick(chambreId, serreIdx, idx)}
+        />
+        {/* Actions */}
+        {isSelected && selectedChambre?.idx != null && (
+          <div style={{ marginTop: 8 }}>
+            {(() => {
+              const alv = serre.alveoles[selectedChambre.idx];
+              const ad = serre.alveoleData?.[selectedChambre.idx];
+              const plant = alv ? PLANTS_SIMPLE.find(p => p.id === alv.plantId) : null;
+              const dbPlant = alv ? PLANTS_DB.find(p => p.id === alv.plantId) : null;
+              if (!plant || !dbPlant) return null;
+              const daysSinceSow = ad?.plantedDate ? Math.floor((Date.now() - new Date(ad.plantedDate).getTime()) / (1000 * 60 * 60 * 24)) : 0;
+              const progress = Math.min(daysSinceSow / (dbPlant.daysToMaturity || 60), 1);
+              const stage = getGrowthStage(ad?.plantedDate, dbPlant.daysToMaturity || 60);
+              return (
+                <div style={{ padding: 10, background: plant.color + '15', border: `1px solid ${plant.color}40`, borderRadius: 8 }}>
+                  <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 6 }}>
+                    <span style={{ fontSize: 24, transform: `scale(${stage.scale})`, display: 'inline-block' }}>{stage.emoji}</span>
+                    <div>
+                      <div style={{ fontSize: 12, fontWeight: 700 }}>{plant.name}</div>
+                      <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.5)' }}>J+{daysSinceSow} · {dbPlant.daysToMaturity}j</div>
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', gap: 4 }}>
+                    <div onClick={() => { setMovingFromIdx({ serreIdx, idx: selectedChambre.idx }); setSelectedChambre(null); }} style={{ ...S.primaryBtn, background: 'rgba(255,255,255,0.1)', padding: '6px 0', fontSize: 10, flex: 1, border: '1px solid rgba(255,255,255,0.2)' }}>📍 Déplacer</div>
+                    <div onClick={() => { removeSerreSeed(chambreId, serreIdx, selectedChambre.idx); setSelectedChambre(null); }} style={{ ...S.primaryBtn, background: 'rgba(220,53,69,0.2)', padding: '6px 0', fontSize: 10, flex: 1, border: '1px solid rgba(220,53,69,0.4)' }}>🗑️</div>
+                  </div>
+                </div>
+              );
+            })()}
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  // Rendu d'une chambre
+  const renderChambre = (chambre) => (
+    <div key={chambre.id} style={{ marginBottom: 32 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+        <div style={{ fontSize: 14, fontWeight: 700, color: '#fff' }}>
+          🚪 {chambre.name}
+          <span style={{ marginLeft: 8, fontSize: 10, color: 'rgba(255,255,255,0.3)', fontWeight: 400 }}>
+            {chambre.miniSerres.length} mini-serres · {chambre.miniSerres.reduce((acc, s) => acc + s.alveoles.filter(Boolean).length, 0)} plants
+          </span>
+        </div>
+        <div onClick={() => buyMiniSerre(chambre.id)} style={{ padding: '4px 10px', borderRadius: 6, border: '1px dashed rgba(255,255,255,0.2)', color: 'rgba(255,255,255,0.5)', fontSize: 11, cursor: 'pointer' }}>
+          + Mini-serre (1€)
+        </div>
+      </div>
+      {/* Grille 2x3 mini-serres */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 12 }}>
+        {chambre.miniSerres.map((serre, idx) => renderMiniSerre(chambre.id, idx, serre))}
+      </div>
+    </div>
+  );
+
+  return (
+    <div>
+      {/* Mode déplacement */}
+      {movingFromIdx !== null && (
+        <div style={{ marginBottom: 10, padding: '8px 12px', background: 'rgba(46,204,113,0.15)', border: '1px solid rgba(46,204,113,0.4)', borderRadius: 8, fontSize: 12, color: '#2ecc71' }}>
+          📍 Mode déplacement — clique sur une alvéole cible (ou même pour annuler)
+        </div>
+      )}
+
+      {/* Header avec solde */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+        <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.5)' }}>
+          {chambres.length} chambre{chambres.length > 1 ? 's' : ''} · {chambres.reduce((acc, ch) => acc + ch.miniSerres.reduce((a, s) => a + s.alveoles.filter(Boolean).length, 0), 0)} plants total
+        </div>
+        <div onClick={() => setShowShop(true)} style={{ padding: '6px 12px', borderRadius: 8, background: 'rgba(46,204,113,0.15)', border: '1px solid rgba(46,204,113,0.4)', color: '#2ecc71', fontSize: 12, cursor: 'pointer' }}>
+          🛒 Boutique (3€/chambre)
+        </div>
+      </div>
+
+      {/* Liste des chambres */}
+      {chambres.length === 0 ? (
+        <div style={{ textAlign: 'center', padding: '40px 20px', color: 'rgba(255,255,255,0.4)' }}>
+          <div style={{ fontSize: 48, marginBottom: 12 }}>🚪</div>
+          <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 8 }}>Aucune chambre de culture</div>
+          <div style={{ fontSize: 12, marginBottom: 16 }}>Achète ta première chambre dans la boutique pour commencer</div>
+        </div>
+      ) : (
+        chambres.map(renderChambre)
+      )}
+
+      {/* Modal Boutique */}
+      {showShop && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', backdropFilter: 'blur(8px)', zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+          <div style={{ background: '#1a1f2e', border: '2px solid rgba(46,204,113,0.4)', borderRadius: 16, padding: 24, width: '100%', maxWidth: 380 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+              <div style={{ fontSize: 18, fontWeight: 700, color: '#2ecc71' }}>🛒 Boutique</div>
+              <div onClick={() => setShowShop(false)} style={{ fontSize: 24, cursor: 'pointer', color: 'rgba(255,255,255,0.5)' }}>×</div>
+            </div>
+
+            {/* Solde */}
+            <div style={{ padding: '10px 14px', background: 'rgba(255,215,0,0.1)', border: '1px solid rgba(255,215,0,0.3)', borderRadius: 8, marginBottom: 16, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span style={{ color: 'rgba(255,255,255,0.6)', fontSize: 12 }}>Ton solde</span>
+              <span style={{ color: '#ffd700', fontSize: 18, fontWeight: 700 }}>{coins} €</span>
+            </div>
+
+            {/* Article: Chambre de culture */}
+            <div style={{ padding: 16, background: 'rgba(46,204,113,0.08)', border: '2px solid rgba(46,204,113,0.3)', borderRadius: 12, marginBottom: 12 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 10 }}>
+                <div style={{ fontSize: 36 }}>🚪</div>
+                <div>
+                  <div style={{ fontSize: 14, fontWeight: 700, color: '#fff' }}>Chambre de Culture</div>
+                  <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.5)' }}>6 mini-serres · 144 alvéoles</div>
+                </div>
+              </div>
+              <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)', marginBottom: 10 }}>
+                Une chambre de culture pour abriter tes mini-serres. Chaque chambre contient 6 mini-serres de 24 alvéoles chacune.
+                Ne dépend pas de la météo (intérieur).
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div style={{ fontSize: 20, fontWeight: 700, color: '#ffd700' }}>{CHAMBRE_PRICE} €</div>
+                <div onClick={buyChambre} style={{ padding: '8px 16px', borderRadius: 8, background: coins >= CHAMBRE_PRICE ? '#2ecc71' : 'rgba(255,255,255,0.1)', color: coins >= CHAMBRE_PRICE ? '#0d1117' : 'rgba(255,255,255,0.3)', fontSize: 13, fontWeight: 700, cursor: coins >= CHAMBRE_PRICE ? 'pointer' : 'not-allowed' }}>
+                  Acheter
+                </div>
+              </div>
+            </div>
+
+            {/* Mini-serre seule */}
+            <div style={{ padding: 14, background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 10 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <div style={{ fontSize: 28 }}>📦</div>
+                  <div>
+                    <div style={{ fontSize: 13, fontWeight: 600, color: '#fff' }}>Mini-serre supplémentaire</div>
+                    <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.4)' }}>24 alvéoles</div>
+                  </div>
+                </div>
+                <div style={{ fontSize: 16, fontWeight: 700, color: '#ffd700' }}>1 €</div>
+              </div>
+              <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.3)', marginBottom: 8 }}>
+                Ajoute des mini-serres dans une chambre existante.
+              </div>
+              {chambres.length > 0 ? (
+                <select
+                  onChange={(e) => {
+                    const chambreId = e.target.value;
+                    if (chambreId) {
+                      buyMiniSerre(chambreId);
+                      e.target.value = '';
+                    }
+                  }}
+                  style={{ width: '100%', padding: '6px 10px', borderRadius: 6, background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.15)', color: '#fff', fontSize: 12, outline: 'none' }}
+                >
+                  <option value="">Choisir une chambre...</option>
+                  {chambres.map(ch => (
+                    <option key={ch.id} value={ch.id}>{ch.name} ({ch.miniSerres.length} mini-serres)</option>
+                  ))}
+                </select>
+              ) : (
+                <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.3)', fontStyle: 'italic' }}>Achète d'abord une chambre</div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── JARDIN RÉEL VOXEL ISOMÉTRIQUE ─────────────────────────────────────────
 // Jardin voxel style Minecraft avec image isométrique en fond
 // Permet d'ajouter, déplacer et supprimer des éléments librement
@@ -511,11 +1038,14 @@ function SerreScreen({ serres, onAddSerre, onTransplant, onRemoveSerreSeed, onMo
 // ─── JARDIN RÉEL SCREEN — Canvas Isométrique ──────────────────────────────────
 // Remplacement du système CSS 3D par un rendu Canvas cohérent avec les mini-serres
 
-function GardenRealScreen({ permanentPlants, onAddPermanent, onUpdatePlants, onRemovePermanent }) {
+function GardenRealScreen({ permanentPlants, onAddPermanent, onUpdatePlants, onRemovePermanent, onOpenSerreBois }) {
   const [activeCategory, setActiveCategory] = useState('fruit_trees');
   const [selectedObj, setSelectedObj] = useState(null);
   const [showAddPanel, setShowAddPanel] = useState(true);
   const [hoveredCell, setHoveredCell] = useState(null);
+  const [hoveredWoodenGh, setHoveredWoodenGh] = useState(null);
+  const [placementMode, setPlacementMode] = useState('object'); // 'object' | 'fence'
+  const [fencePreview, setFencePreview] = useState(null); // { cell, fenceDef }
   const [photos, setPhotos] = useState(() => {
     // Charger photos depuis localStorage
     try {
@@ -525,7 +1055,7 @@ function GardenRealScreen({ permanentPlants, onAddPermanent, onUpdatePlants, onR
     }
   });
   
-  const { canvasRef, render, ready, layout, GARDEN_GRID_COLS, GARDEN_GRID_ROWS } = useRealGardenRenderer();
+  const { canvasRef, render, ready, layout, getCellAt, getObjectAt, GARDEN_GRID_COLS, GARDEN_GRID_ROWS } = useRealGardenRenderer();
 
   const categories = [
     { id: 'fruit_trees', label: '🍎 Fruitiers', items: GARDEN_OBJECTS_DB.fruit_trees },
@@ -533,6 +1063,7 @@ function GardenRealScreen({ permanentPlants, onAddPermanent, onUpdatePlants, onR
     { id: 'hedges', label: '🌲 Haies', items: GARDEN_OBJECTS_DB.hedges },
     { id: 'shrubs', label: '🌿 Arbustes', items: GARDEN_OBJECTS_DB.shrubs },
     { id: 'small_fruits', label: '🫐 Petits Fruits', items: GARDEN_OBJECTS_DB.small_fruits },
+    { id: 'fences', label: '🚧 Clôtures', items: GARDEN_OBJECTS_DB.fences },
     { id: 'structures', label: '🏠 Structures', items: GARDEN_OBJECTS_DB.structures },
   ];
 
@@ -546,7 +1077,7 @@ function GardenRealScreen({ permanentPlants, onAddPermanent, onUpdatePlants, onR
     if (!ready) return;
     const canvas = canvasRef.current;
     if (canvas) {
-      render(canvas, permanentPlants, selectedObj, hoveredCell);
+      render(canvas, permanentPlants, selectedObj, hoveredCell, placementMode === 'fence' ? fenceDraft : null, hoveredCell);
     }
   }, [ready, render, permanentPlants, selectedObj, hoveredCell]);
 
@@ -565,10 +1096,17 @@ function GardenRealScreen({ permanentPlants, onAddPermanent, onUpdatePlants, onR
   };
 
   const handleAddObject = (obj) => {
+    // Détecter si c'est une clôture → mode pose
+    if (obj.type === 'fence') {
+      setPlacementMode('fence');
+      setSelectedFenceDef(obj);
+      setSelectedObj(null);
+      return;
+    }
     // Trouver une cellule vide
     const usedCells = new Set(
       permanentPlants
-        .filter(p => p?.position?.row != null && p?.position?.col != null)
+        .filter(p => p?.position?.row != null && p?.position?.col != null && p?.type !== 'fence')
         .map(p => `${p.position.row}-${p.position.col}`)
     );
     let placed = false;
@@ -590,95 +1128,82 @@ function GardenRealScreen({ permanentPlants, onAddPermanent, onUpdatePlants, onR
     setSelectedObj(newObj.uid);
   };
 
+  // ── État actif pour la clôture en cours de pose ─────────────────────────────
+  const [fenceDraft, setFenceDraft] = useState(null); // { fenceDef, cell, orientation }
+  const [selectedFenceDef, setSelectedFenceDef] = useState(null); // clôture choisie dans le panel
+
   const handleCanvasClick = (e) => {
-    console.log('Click canvas', e.clientX, e.clientY);
-
-    // Calcul direct de la cellule
-    const canvas = canvasRef.current;
-    if (!canvas) {
-      console.log('PAS DE CANVAS dans handleCanvasClick');
-      return;
-    }
-    const rect = canvas.getBoundingClientRect();
-    const rx = (e.clientX - rect.left) / rect.width;
-    const ry = (e.clientY - rect.top) / rect.height;
-
-    // Layout values (from hook)
-    const { W, H, ox, oy } = layout;
-    const px = rx * W;
-    const py = ry * H;
-
-    // Iso inverse
-    const rx2 = px - ox;
-    const ry2 = py - oy;
-    const col = (rx2 / 40 + ry2 / 20) / 2;  // TILE_W=80, TILE_H=40
-    const row = (ry2 / 20 - rx2 / 40) / 2;
-    // Correction du décalage
-    const tc = Math.round(col - 0.5);
-    const tr = Math.round(row - 0.5);
-
-    console.log('px/py:', px.toFixed(0), py.toFixed(0), 'col/row:', col.toFixed(1), row.toFixed(1), 'tc/tr:', tc, tr);
-
-    let cell = null;
-    if (tr >= 0 && tr < GARDEN_GRID_ROWS && tc >= 0 && tc < GARDEN_GRID_COLS) {
-      cell = { row: tr, col: tc };
-    }
-    console.log('Cell trouvée:', cell);
+    const cell = getCellAt(e.clientX, e.clientY);
     if (!cell) return;
 
-    // Log tous les objets et leurs positions
-    console.log('Tous les objets:', permanentPlants.map(p => ({ uid: p.uid, name: p.name, pos: p.position })));
+    // ── Mode clôture : attente d'orientation ─────────────────────────────────
+    if (placementMode === 'fence' && fenceDraft) {
+      // Deuxième clic : poser la clôture
+      const newFence = {
+        ...fenceDraft.fenceDef,
+        uid: uid(),
+        position: { row: fenceDraft.cell.row, col: fenceDraft.cell.col },
+        fenceOrientation: fenceDraft.orientation,
+        type: 'fence',
+      };
+      onAddPermanent(newFence);
+      setFenceDraft(null);
+      setPlacementMode('object');
+      setSelectedObj(null);
+      return;
+    }
 
-    // Chercher un objet à cette position
-    const objAtCell = permanentPlants.find(p =>
-      p?.position?.row === cell.row && p?.position?.col === cell.col
-    );
-    console.log('Objet à cette position:', objAtCell, 'Sélection actuelle:', selectedObj);
+    if (placementMode === 'fence' && !fenceDraft) {
+      // Premier clic : choisir la cellule de départ
+      setFenceDraft({ cell, fenceDef: selectedFenceDef || GARDEN_OBJECTS_DB.fences[0] });
+      return;
+    }
+
+    // ── Mode objet : sélection ou déplacement ─────────────────────────────────
+    const objAtCell = getObjectAt(e.clientX, e.clientY, permanentPlants);
 
     if (objAtCell) {
-      console.log('Sélection de:', objAtCell.uid, '(actuel:', selectedObj, ')');
-      setSelectedObj(objAtCell.uid === selectedObj ? null : objAtCell.uid);
-    } else {
-      // Déplacer l'objet sélectionné ici
-      if (selectedObj) {
-        console.log('Déplacement de', selectedObj, 'vers', cell);
-        onUpdatePlants(prev => {
-          const updated = prev.map(p =>
-            p.uid === selectedObj ? { ...p, position: { row: cell.row, col: cell.col } } : p
-          );
-          console.log('Nouvelle liste:', updated);
-          return updated;
-        });
-        // Garder l'objet sélectionné mais montrer un feedback
-        setTimeout(() => setSelectedObj(null), 300);
+      if (objAtCell.structureType === 'wooden_greenhouse') {
+        onOpenSerreBois(objAtCell.uid);
       } else {
-        console.log('Pas d\'objet sélectionné');
+        setSelectedObj(objAtCell.uid === selectedObj ? null : objAtCell.uid);
+      }
+    } else {
+      if (selectedObj) {
+        onUpdatePlants(prev =>
+          prev.map(p =>
+            p.uid === selectedObj ? { ...p, position: { row: cell.row, col: cell.col } } : p
+          )
+        );
+        setSelectedObj(null);
       }
     }
   };
 
   const handleCanvasMove = (e) => {
-    // Calcul direct de la cellule pour le hover
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const rect = canvas.getBoundingClientRect();
-    const rx = (e.clientX - rect.left) / rect.width;
-    const ry = (e.clientY - rect.top) / rect.height;
-    const { W, H, ox, oy } = layout;
-    const px = rx * W;
-    const py = ry * H;
-    const rx2 = px - ox;
-    const ry2 = py - oy;
-    const col = (rx2 / 40 + ry2 / 20) / 2;
-    const row = (ry2 / 20 - rx2 / 40) / 2;
-    // Correction du décalage
-    const tc = Math.round(col - 0.5);
-    const tr = Math.round(row - 0.5);
-    if (tr >= 0 && tr < GARDEN_GRID_ROWS && tc >= 0 && tc < GARDEN_GRID_COLS) {
-      setHoveredCell({ row: tr, col: tc });
-    } else {
+    const cell = getCellAt(e.clientX, e.clientY);
+    if (!cell) {
       setHoveredCell(null);
+      setHoveredWoodenGh(null);
+      return;
     }
+    setHoveredCell(cell);
+
+    // Mise à jour de l'orientation de la clôture en cours
+    if (fenceDraft) {
+      const dRow = cell.row - fenceDraft.cell.row;
+      const dCol = cell.col - fenceDraft.cell.col;
+      // Choisir l'orientation dominante
+      let orientation = 'H';
+      if (Math.abs(dRow) > Math.abs(dCol)) orientation = 'V';
+      setFenceDraft(prev => prev ? { ...prev, orientation } : null);
+    }
+
+    // Détecter serre en bois survolée
+    const gh = permanentPlants.find(p =>
+      p?.position?.row === cell.row && p?.position?.col === cell.col && p?.structureType === 'wooden_greenhouse'
+    );
+    setHoveredWoodenGh(gh || null);
   };
 
   const selectedObject = permanentPlants.find(p => p.uid === selectedObj);
@@ -688,7 +1213,7 @@ function GardenRealScreen({ permanentPlants, onAddPermanent, onUpdatePlants, onR
       {/* Barre de catégories */}
       <div style={{ display: 'flex', gap: 4, marginBottom: 10, overflowX: 'auto', paddingBottom: 4 }}>
         {categories.map(cat => (
-          <div key={cat.id} onClick={() => setActiveCategory(cat.id)} style={{
+          <div key={cat.id} onClick={() => { setActiveCategory(cat.id); if (cat.id !== 'fences') { setPlacementMode('object'); setFenceDraft(null); setSelectedFenceDef(null); } }} style={{
             padding: '6px 10px',
             borderRadius: 8,
             fontSize: 11,
@@ -748,14 +1273,64 @@ function GardenRealScreen({ permanentPlants, onAddPermanent, onUpdatePlants, onR
           ref={canvasRef}
           onClick={handleCanvasClick}
           onMouseMove={handleCanvasMove}
+          width={920}
+          height={616}
           style={{
             display: 'block',
-            maxWidth: '100%',
-            height: 'auto',
+            width: '100%',
+            maxWidth: 920,
             maxHeight: 450,
-            cursor: selectedObj ? 'crosshair' : 'pointer',
+            cursor: placementMode === 'fence' ? 'cell' : (selectedObj ? 'crosshair' : (hoveredWoodenGh ? 'pointer' : 'default')),
           }}
         />
+
+        {/* Mode pose de clôture actif */}
+        {placementMode === 'fence' && (
+          <div style={{
+            position: 'absolute',
+            bottom: 12,
+            left: '50%',
+            transform: 'translateX(-50%)',
+            background: 'rgba(0,0,0,0.85)',
+            border: '2px solid #ffa500',
+            borderRadius: 10,
+            padding: '8px 16px',
+            fontSize: 12,
+            color: '#ffa500',
+            whiteSpace: 'nowrap',
+            zIndex: 10,
+            display: 'flex',
+            alignItems: 'center',
+            gap: 10,
+          }}>
+            {fenceDraft
+              ? <>🚧 Pose en cours — {fenceDraft.fenceDef.name} [{fenceDraft.orientation === 'H' ? '─ Horizontal' : '│ Vertical'}] — cliquez une 2e cellule pour finir</>
+              : <>🚧 Cliquez une 1re cellule pour poser une {selectedFenceDef?.name || 'clôture'}</>
+            }
+            <span onClick={() => { setPlacementMode('object'); setFenceDraft(null); setSelectedFenceDef(null); }} style={{ cursor: 'pointer', marginLeft: 8, fontSize: 16 }}>×</span>
+          </div>
+        )}
+        {hoveredWoodenGh && (
+          <div style={{
+            position: 'absolute',
+            top: 12,
+            left: '50%',
+            transform: 'translateX(-50%)',
+            background: 'rgba(160,82,45,0.95)',
+            border: '2px solid #A0522D',
+            borderRadius: 10,
+            padding: '8px 14px',
+            fontSize: 12,
+            fontWeight: 600,
+            color: '#fff',
+            whiteSpace: 'nowrap',
+            boxShadow: '0 4px 16px rgba(0,0,0,0.4)',
+            zIndex: 10,
+            pointerEvents: 'none',
+          }}>
+            🚪 {hoveredWoodenGh.name || 'Serre en Bois'} — Cliquez pour ouvrir
+          </div>
+        )}
 
         {/* Message si vide */}
         {permanentPlants.length === 0 && (
@@ -801,6 +1376,11 @@ function GardenRealScreen({ permanentPlants, onAddPermanent, onUpdatePlants, onR
             </div>
           </div>
           <div style={{ display: 'flex', gap: 8 }}>
+            {selectedObject.structureType === 'wooden_greenhouse' && (
+              <div onClick={() => onOpenSerreBois(selectedObject.uid)} style={{ flex: 1, padding: '8px 0', borderRadius: 8, textAlign: 'center', background: 'rgba(46,204,113,0.2)', border: '1px solid rgba(46,204,113,0.4)', color: '#2ecc71', fontSize: 12, cursor: 'pointer', fontWeight: 600 }}>
+                🚪 Ouvrir
+              </div>
+            )}
             <div onClick={() => { onRemovePermanent(selectedObject.uid); setSelectedObj(null); }} style={{ flex: 1, padding: '8px 0', borderRadius: 8, textAlign: 'center', background: 'rgba(231,76,60,0.15)', border: '1px solid rgba(231,76,60,0.3)', color: '#e74c3c', fontSize: 12, cursor: 'pointer', fontWeight: 600 }}>
               🗑️ Supprimer
             </div>
@@ -1476,12 +2056,23 @@ export default function App() {
   const [serres, setSerres] = useState([
     { id: uid(), name: 'Serre principale', alveoles: Array(SERRE_COLS * SERRE_ROWS).fill(null), alveoleData: {} }
   ]);
+  // Chambres de Culture — chaque chambre contient 6 mini-serres (24 alvéoles chacune = 144 alvéoles/chambre)
+  const [chambres, setChambres] = useState(() => {
+    const saved = localStorage.getItem('greenhub-chambres');
+    return saved ? JSON.parse(saved) : [];
+  });
+  const [coins, setCoins] = useState(() => {
+    const saved = localStorage.getItem('greenhub-coins');
+    return saved ? parseInt(saved) : 100;
+  });
   const [gardenArea, setGardenArea] = useState(550);
   const gardenMetrics = getGardenMetrics(gardenArea);
   const [gardenGrid, setGardenGrid] = useState(() =>
     Array(gardenMetrics.rows).fill(null).map(() => Array(gardenMetrics.cols).fill(null))
   );
   const [permanentPlants, setPermanentPlants] = useState([]);
+  const permanentPlantsRef = useRef([]);
+  useEffect(() => { permanentPlantsRef.current = permanentPlants; }, [permanentPlants]);
   const [tab, setTab] = useState('serres');
   const [toast, setToast] = useState(null);
   const [score, setScore] = useState(0);
@@ -1495,6 +2086,8 @@ export default function App() {
   const [showQuests, setShowQuests] = useState(false);
   const [showCollection, setShowCollection] = useState(false);
   const [showSkillTree, setShowSkillTree] = useState(false);
+  const [selectedSerreBois, setSelectedSerreBois] = useState(null);
+  const [showShopChambres, setShowShopChambres] = useState(false);
   
   // Système de Quêtes
   const [dailyQuests, setDailyQuests] = useState(() => {
@@ -1553,12 +2146,16 @@ export default function App() {
         const data = JSON.parse(saved);
         if (data.serres) setSerres(data.serres);
         if (data.gardenGrid) setGardenGrid(data.gardenGrid);
-        if (data.permanentPlants) setPermanentPlants(data.permanentPlants);
+        if (data.permanentPlants) setPermanentPlants(data.permanentPlants.filter(p => p.id !== 'greenhouse_small' && p.id !== 'greenhouse_large'));
         if (data.score) setScore(data.score);
         if (data.level) setLevel(data.level);
         if (data.streak !== undefined) setStreak(data.streak);
         if (data.badges !== undefined) setBadges(data.badges);
       }
+      const savedChambres = localStorage.getItem('greenhub-chambres');
+      if (savedChambres) setChambres(JSON.parse(savedChambres));
+      const savedCoins = localStorage.getItem('greenhub-coins');
+      if (savedCoins) setCoins(parseInt(savedCoins));
     } catch (e) { /* ignore */ }
   }, []);
 
@@ -1566,6 +2163,16 @@ export default function App() {
   useEffect(() => {
     localStorage.setItem('greenhub-state', JSON.stringify({ serres, gardenGrid, permanentPlants, score, level, streak, badges }));
   }, [serres, gardenGrid, permanentPlants, score, level, streak, badges]);
+
+  // Save chambres
+  useEffect(() => {
+    localStorage.setItem('greenhub-chambres', JSON.stringify(chambres));
+  }, [chambres]);
+
+  // Save coins
+  useEffect(() => {
+    localStorage.setItem('greenhub-coins', coins.toString());
+  }, [coins]);
   
   // Récupérer météo et alertes
   useEffect(() => {
@@ -2092,6 +2699,7 @@ export default function App() {
               </div>
             )}
             <div style={{ fontSize: 20, fontWeight: 700, color: '#2ecc71' }}>{score} pts</div>
+            <div style={{ fontSize: 16, fontWeight: 700, color: '#ffd700' }}>{coins}€</div>
           </div>
           <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.3)' }}>
             🏠 {totalAlv} alvéoles · 🌍 {totalGarden} au jardin · 🧺 {harvestEstimate.totalKg}kg est.
@@ -2104,7 +2712,7 @@ export default function App() {
 
       {/* Tabs */}
       <div style={{ display: 'flex', gap: 3, margin: '14px 20px 0' }}>
-        {[['serres', '🏠 Serres'], ['real_garden', '🏡 Jardin'], ['semer', '🌱 Semer'], ['recoltes', '🧺 Récoltes'], ['game', '⭐ Score']].map(([id, label]) => (
+        {[['serres', '🏠 Serres'], ['chambres', '🏠 Chambres'], ['real_garden', '🏡 Jardin'], ['semer', '🌱 Semer'], ['recoltes', '🧺 Récoltes'], ['game', '⭐ Score']].map(([id, label]) => (
           <div key={id} onClick={() => { setTab(id); if (id === 'game') setShowGame(true); }} style={{ flex: 1, textAlign: 'center', padding: '9px 0', borderRadius: 10, cursor: 'pointer', fontSize: 11, background: tab === id ? 'rgba(46,204,113,0.15)' : 'rgba(255,255,255,0.03)', border: `1px solid ${tab === id ? '#2ecc7160' : 'rgba(255,255,255,0.06)'}`, color: tab === id ? '#2ecc71' : 'rgba(255,255,255,0.4)', fontWeight: tab === id ? 600 : 400, transition: 'all 0.2s' }}>{label}</div>
         ))}
       </div>
@@ -2147,7 +2755,8 @@ export default function App() {
 
       <div style={{ padding: '14px 20px 0' }}>
         {tab === 'serres' && <SerreScreen serres={serres} onAddSerre={addSerre} onTransplant={handleTransplant} onRemoveSerreSeed={handleRemoveSerreSeed} onMoveSerreSeed={handleMoveSerreSeed} />}
-        {tab === 'real_garden' && <GardenRealScreen permanentPlants={permanentPlants} onAddPermanent={(obj) => { setPermanentPlants(p => [...p, obj]); showToast(`🌳 ${obj.name} ajouté au jardin !`); }} onUpdatePlants={(updater) => setPermanentPlants(updater)} onRemovePermanent={(uid) => { setPermanentPlants(p => p.filter(x => x.uid !== uid)); showToast('🗑️ Élément retiré'); }} />}
+        {tab === 'chambres' && <ChambresScreen chambres={chambres} setChambres={setChambres} coins={coins} setCoins={setCoins} showToast={showToast} />}
+        {tab === 'real_garden' && <LudusTerraeTab onOpenSerreBois={(uid) => { const obj = permanentPlantsRef.current.find(p => p.uid === uid); if (obj?.structureType === 'wooden_greenhouse') setSelectedSerreBois(obj); }} />}
         {tab === 'semer' && <SowingScreen serres={serres} onAddSerre={addSerre} onSow={handleSow} />}
         {tab === 'recoltes' && (
           <div>
@@ -2187,6 +2796,10 @@ export default function App() {
         <div onClick={() => setTab('serres')} style={{ textAlign: 'center', cursor: 'pointer' }}>
           <div style={{ fontSize: 20 }}>🏠</div>
           <div style={{ fontSize: 10, color: tab === 'serres' ? '#2ecc71' : 'rgba(255,255,255,0.3)' }}>Serres</div>
+        </div>
+        <div onClick={() => setTab('chambres')} style={{ textAlign: 'center', cursor: 'pointer' }}>
+          <div style={{ fontSize: 20 }}>🚪</div>
+          <div style={{ fontSize: 10, color: tab === 'chambres' ? '#2ecc71' : 'rgba(255,255,255,0.3)' }}>Chambres</div>
         </div>
         <div onClick={() => setTab('real_garden')} style={{ textAlign: 'center', cursor: 'pointer' }}>
           <div style={{ fontSize: 20 }}>🏡</div>
@@ -2293,7 +2906,7 @@ export default function App() {
                           const data = JSON.parse(event.target.result);
                           if (data.serres) setSerres(data.serres);
                           if (data.gardenGrid) setGardenGrid(data.gardenGrid);
-                          if (data.permanentPlants) setPermanentPlants(data.permanentPlants);
+                          if (data.permanentPlants) setPermanentPlants(data.permanentPlants.filter(p => p.id !== 'greenhouse_small' && p.id !== 'greenhouse_large'));
                           if (data.score) setScore(data.score);
                           if (data.level) setLevel(data.level);
                           showToast('✅ Jardin importé avec succès !');
@@ -2346,6 +2959,19 @@ export default function App() {
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', backdropFilter: 'blur(8px)', zIndex: 100, padding: 20, overflowY: 'auto' }}>
           <CalendarScreen onClose={() => setShowCalendar(false)} />
         </div>
+      )}
+
+      {/* Serre en Bois Modal */}
+      {selectedSerreBois && (
+        <SerreBoisModal
+          serreBois={selectedSerreBois}
+          chambres={chambres}
+          setChambres={setChambres}
+          coins={coins}
+          setCoins={setCoins}
+          showToast={showToast}
+          onClose={() => setSelectedSerreBois(null)}
+        />
       )}
 
       {/* Quests Modal */}

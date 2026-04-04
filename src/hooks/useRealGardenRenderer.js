@@ -9,6 +9,7 @@ export const GARDEN_GRID_ROWS = 10;
 const TILE_W = 80;
 const TILE_H = 40;
 const TILE_D = 16;
+const DEBUG_LOG = false; // Mettre à true pour débugger
 
 // ─── SPRITES CONFIG ───────────────────────────────────────────────────────────
 const SPRITE_BASE = '/tileset/garden/';
@@ -44,6 +45,14 @@ const OBJECT_COLORS = {
   small_fruit: { top: '#7b1fa2', side: '#6a1b9a', dark: '#4a148c' },
   shed: { top: '#8d6e63', side: '#6d4c41', dark: '#5d4037' },
   greenhouse: { top: '#81c784', side: '#66bb6a', dark: '#4caf50' },
+  wooden_greenhouse: { top: '#A0522D', side: '#8B4513', dark: '#6B3510' },
+  // Cel-shaded tree colors
+  tree_leaf1: '#4a8c2a',
+  tree_leaf2: '#2d5a0f',
+  tree_leaf3: '#6ab04a',
+  fruit_leaf1: '#5d4037',
+  fruit_leaf2: '#3e2723',
+  fruit_leaf3: '#8d6e63',
 };
 
 // ─── CACHE ─────────────────────────────────────────────────────────────────────
@@ -64,34 +73,24 @@ function isoXY(c, r) {
   return { x: (c - r) * (TILE_W / 2), y: (c + r) * (TILE_H / 2) };
 }
 
-function screenToCell(px, py, ox, oy) {
-  const rx = px - ox;
-  const ry = py - oy;
+function screenToCell(px, py, layout) {
+  const rx = px - layout.ox;
+  const ry = py - layout.oy;
 
   const col = (rx / (TILE_W / 2) + ry / (TILE_H / 2)) / 2;
   const row = (ry / (TILE_H / 2) - rx / (TILE_W / 2)) / 2;
 
-  console.log('[screenToCell] px/py:', px.toFixed(0), py.toFixed(0));
-  console.log('[screenToCell] ox/oy:', ox.toFixed(0), oy.toFixed(0));
-  console.log('[screenToCell] rx/ry:', rx.toFixed(0), ry.toFixed(0));
-  console.log('[screenToCell] col/row:', col.toFixed(1), row.toFixed(1));
-
   const tc = Math.round(col);
   const tr = Math.round(row);
 
-  console.log('[screenToCell] tr/tc:', tr, tc);
-  console.log('[screenToCell] limites:', GARDEN_GRID_ROWS, GARDEN_GRID_COLS);
-
   if (tr >= 0 && tr < GARDEN_GRID_ROWS && tc >= 0 && tc < GARDEN_GRID_COLS) {
-    console.log('[screenToCell] OK!');
     return { row: tr, col: tc };
   }
-
-  console.log('[screenToCell] HORS LIMITES');
   return null;
 }
 
-function calcLayout() {
+// Layout précalculé (constant — les tuiles ne changent jamais)
+const LAYOUT = (() => {
   const pos = [];
   for (let r = 0; r < GARDEN_GRID_ROWS; r++)
     for (let c = 0; c < GARDEN_GRID_COLS; c++)
@@ -100,7 +99,7 @@ function calcLayout() {
   const maxX = Math.max(...pos.map(p => p.x)) + TILE_W;
   const minY = Math.min(...pos.map(p => p.y));
   const maxY = Math.max(...pos.map(p => p.y)) + TILE_H + TILE_D;
-  const headroom = 120; // Plus grand pour les arbres
+  const headroom = 120;
   const padX = 20, padTop = headroom + 20, padBot = 20;
   return {
     W: maxX - minX + padX * 2,
@@ -108,10 +107,10 @@ function calcLayout() {
     ox: -minX + padX,
     oy: -minY + padTop,
   };
-}
+})();
 
 // ─── DRAW: FOND ───────────────────────────────────────────────────────────────
-function drawBg(ctx, w, h) {
+function drawBg(ctx, w, h, layout) {
   // Ciel
   const g = ctx.createLinearGradient(0, 0, 0, h);
   g.addColorStop(0, '#87CEEB');
@@ -140,6 +139,34 @@ function drawBg(ctx, w, h) {
   ctx.lineTo(w, h);
   ctx.lineTo(0, h);
   ctx.fill();
+
+  // Rivière sinueuse (en bas du jardin)
+  ctx.save();
+  const riverW = w * 0.15;
+  const riverX = w * 0.78;
+  const riverGrad = ctx.createLinearGradient(0, h * 0.72, 0, h);
+  riverGrad.addColorStop(0, '#4FC3F7');
+  riverGrad.addColorStop(0.5, '#29B6F6');
+  riverGrad.addColorStop(1, '#0288D1');
+  ctx.fillStyle = riverGrad;
+  ctx.beginPath();
+  ctx.moveTo(riverX, h * 0.72);
+  ctx.bezierCurveTo(riverX - riverW * 0.5, h * 0.78, riverX + riverW * 0.3, h * 0.85, riverX - riverW * 0.2, h * 0.9);
+  ctx.bezierCurveTo(riverX + riverW * 0.1, h * 0.95, riverX + riverW * 0.4, h * 0.98, riverX, h);
+  ctx.lineTo(riverX + riverW, h);
+  ctx.bezierCurveTo(riverX + riverW * 1.4, h * 0.98, riverX + riverW * 0.9, h * 0.95, riverX + riverW * 1.2, h * 0.9);
+  ctx.bezierCurveTo(riverX + riverW * 0.7, h * 0.85, riverX + riverW * 1.5, h * 0.78, riverX + riverW, h * 0.72);
+  ctx.closePath();
+  ctx.fill();
+  // Reflets
+  ctx.fillStyle = 'rgba(255,255,255,0.15)';
+  ctx.beginPath();
+  ctx.ellipse(riverX + riverW * 0.3, h * 0.82, riverW * 0.15, 4, 0.3, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.ellipse(riverX + riverW * 0.7, h * 0.92, riverW * 0.1, 3, -0.2, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
 }
 
 // ─── DRAW: TILE SOL ───────────────────────────────────────────────────────────
@@ -269,36 +296,259 @@ function drawFallbackObject(ctx, cx, anchorY, obj, scale) {
   const colors = OBJECT_COLORS[obj.type] || OBJECT_COLORS.tree;
   const size = 25 * scale;
 
-  // Base (tronc ou fondation)
+  // Cas spécial serre en bois avec plan de travail et vitrage
+  if (obj.structureType === 'wooden_greenhouse') {
+    const w = size * 2.5;
+    const h = size * 1.8;
+    const bx = cx - w / 2;
+    const by = anchorY - h;
+    // Structure bois
+    ctx.fillStyle = '#8B4513';
+    ctx.fillRect(bx, by, w, h);
+    // Vitrage (lignes horizontales)
+    ctx.fillStyle = 'rgba(144,238,144,0.5)';
+    ctx.fillRect(bx + 4, by + 4, w - 8, h * 0.4);
+    // Plan de travail (étagère)
+    ctx.fillStyle = '#A0522D';
+    ctx.fillRect(bx - 2, by + h * 0.5, w + 4, 6);
+    ctx.fillRect(bx - 2, by + h * 0.75, w + 4, 6);
+    // Pieds de l'étagère
+    ctx.fillStyle = '#6B3510';
+    ctx.fillRect(bx + 8, by + h * 0.5, 4, h * 0.4);
+    ctx.fillRect(bx + w - 12, by + h * 0.5, 4, h * 0.4);
+    // Toit vitré
+    ctx.fillStyle = 'rgba(144,238,144,0.3)';
+    ctx.beginPath();
+    ctx.moveTo(cx, by - h * 0.4);
+    ctx.lineTo(bx + w + 6, by + 4);
+    ctx.lineTo(bx - 6, by + 4);
+    ctx.closePath();
+    ctx.fill();
+    ctx.strokeStyle = '#8B4513';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+    return;
+  }
+
+  // ── Arbres en style cel-shading / carton ──────────────────────────────
+  const isTree = obj.type === 'tree' || obj.type === 'small_fruit';
+  if (isTree || obj.structureType === 'tree' || obj.structureType === 'fruit_tree') {
+    const trunkW = size * 0.28;
+    const trunkH = size * 0.95;
+    const leafR = size * 0.72;
+
+    // Tronc (brun cartons avec contour sombre)
+    ctx.fillStyle = '#6D4C41';
+    ctx.fillRect(cx - trunkW / 2, anchorY - trunkH, trunkW, trunkH);
+    ctx.strokeStyle = '#3E2723';
+    ctx.lineWidth = 2;
+    ctx.strokeRect(cx - trunkW / 2, anchorY - trunkH, trunkW, trunkH);
+
+    // Cernes du tronc (detail carton)
+    ctx.strokeStyle = '#5D4037';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(cx - trunkW * 0.1, anchorY - trunkH);
+    ctx.lineTo(cx - trunkW * 0.1, anchorY);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(cx + trunkW * 0.3, anchorY - trunkH);
+    ctx.lineTo(cx + trunkW * 0.3, anchorY);
+    ctx.stroke();
+
+    // Feuillage : 3 cercles superposés style cel-shading
+    const top1 = anchorY - size * 1.85;
+    const top2 = anchorY - size * 1.5;
+    const top3 = anchorY - size * 1.15;
+    const l1 = OBJECT_COLORS.tree_leaf1 || '#4a8c2a';
+    const l2 = OBJECT_COLORS.tree_leaf2 || '#2d5a0f';
+    const l3 = OBJECT_COLORS.tree_leaf3 || '#6ab04a';
+
+    // Cercle principal (fond)
+    ctx.fillStyle = l1;
+    ctx.beginPath();
+    ctx.arc(cx, top1, leafR, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = '#1a3a06';
+    ctx.lineWidth = 2.5;
+    ctx.stroke();
+
+    // Cercle gauche
+    ctx.fillStyle = l2;
+    ctx.beginPath();
+    ctx.arc(cx - leafR * 0.55, top2, leafR * 0.75, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = '#1a3a06';
+    ctx.lineWidth = 2.5;
+    ctx.stroke();
+
+    // Cercle droite (highlight)
+    ctx.fillStyle = l3;
+    ctx.beginPath();
+    ctx.arc(cx + leafR * 0.45, top3, leafR * 0.65, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = '#1a3a06';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+
+    // Reflet clair (highlight cel-shading)
+    ctx.fillStyle = 'rgba(255,255,255,0.18)';
+    ctx.beginPath();
+    ctx.ellipse(cx - leafR * 0.25, top1 - leafR * 0.25, leafR * 0.2, leafR * 0.15, -0.5, 0, Math.PI * 2);
+    ctx.fill();
+
+    return;
+  }
+
+  // ── Autres objets : dessin geometrique simple ──
   ctx.fillStyle = colors.side;
   ctx.fillRect(cx - size * 0.3, anchorY - size, size * 0.6, size);
 
-  // Cime/Forme principale
   ctx.fillStyle = colors.top;
   ctx.beginPath();
   ctx.arc(cx, anchorY - size * 1.5, size, 0, Math.PI * 2);
   ctx.fill();
 
-  // Ombre interne
-  ctx.fillStyle = colors.dark;
-  ctx.beginPath();
-  ctx.arc(cx + size * 0.3, anchorY - size * 1.3, size * 0.6, 0, Math.PI * 2);
-  ctx.fill();
+  ctx.strokeStyle = '#1a3a06';
+  ctx.lineWidth = 2;
+  ctx.stroke();
 
-  // Emoji
   ctx.font = `${Math.floor(size)}px sans-serif`;
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
   ctx.fillText(obj.emoji || '🌳', cx, anchorY - size * 1.5);
 }
 
+// Dessin d'un segment de clôture sur une arête de tuile
+function drawFenceSegment(ctx, x, y, orientation, fenceDef, opts = {}) {
+  const { preview, selected } = opts;
+  const hw = TILE_W / 2;
+  const hh = TILE_H / 2;
+
+  let x1, y1, x2, y2;
+  if (orientation === 'H') {
+    x1 = x + hw; y1 = y + hh;
+    x2 = x + TILE_W; y2 = y + hh;
+  } else {
+    x1 = x; y1 = y + hh;
+    x2 = x + hw; y2 = y + TILE_H;
+  }
+
+  const color = fenceDef.color || '#8B4513';
+  ctx.save();
+  ctx.globalAlpha = preview ? 0.6 : 0.9;
+
+  if (fenceDef.style === 'mesh') {
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 4;
+    ctx.beginPath();
+    ctx.moveTo(x1, y1);
+    ctx.lineTo(x2, y2);
+    ctx.stroke();
+    ctx.lineWidth = 1;
+    const dx = x2 - x1, dy = y2 - y1;
+    const len = Math.sqrt(dx * dx + dy * dy);
+    const nx = -dy / len, ny = dx / len;
+    const step = 8;
+    ctx.beginPath();
+    for (let t = step; t < len; t += step) {
+      const px = x1 + dx * (t / len);
+      const py = y1 + dy * (t / len);
+      ctx.moveTo(px + nx * 4, py + ny * 4);
+      ctx.lineTo(px - nx * 4, py - ny * 4);
+    }
+    ctx.stroke();
+  } else if (fenceDef.style === 'wire') {
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 1.5;
+    ctx.setLineDash([3, 3]);
+    ctx.beginPath();
+    ctx.moveTo(x1, y1);
+    ctx.lineTo(x2, y2);
+    ctx.stroke();
+    ctx.setLineDash([]);
+  } else if (fenceDef.style === 'wall') {
+    ctx.fillStyle = color;
+    const dx = x2 - x1, dy = y2 - y1;
+    const len = Math.sqrt(dx * dx + dy * dy);
+    const nx = -dy / len * 5, ny = dx / len * 5;
+    ctx.beginPath();
+    ctx.moveTo(x1 + nx, y1 + ny);
+    ctx.lineTo(x2 + nx, y2 + ny);
+    ctx.lineTo(x2 - nx, y2 - ny);
+    ctx.lineTo(x1 - nx, y1 - ny);
+    ctx.closePath();
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(0,0,0,0.3)';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+  } else {
+    ctx.strokeStyle = color;
+    ctx.lineWidth = fenceDef.style === 'picket' ? 2 : 3;
+    ctx.beginPath();
+    ctx.moveTo(x1, y1);
+    ctx.lineTo(x2, y2);
+    ctx.stroke();
+    const dx = x2 - x1, dy = y2 - y1;
+    const len = Math.sqrt(dx * dx + dy * dy);
+    const steps = fenceDef.style === 'picket' ? 4 : 3;
+    ctx.lineWidth = 2;
+    for (let t = 1; t < steps; t++) {
+      const px = x1 + dx * (t / steps);
+      const py = y1 + dy * (t / steps);
+      const perpX = -dy / len * 6;
+      const perpY = dx / len * 6;
+      ctx.beginPath();
+      ctx.moveTo(px, py);
+      ctx.lineTo(px + perpX, py + perpY);
+      ctx.stroke();
+    }
+  }
+
+  // Indicateur de sélection
+  if (selected) {
+    ctx.globalAlpha = 0.9;
+    ctx.strokeStyle = '#2ecc71';
+    ctx.lineWidth = 2.5;
+    ctx.beginPath();
+    ctx.moveTo(x1, y1);
+    ctx.lineTo(x2, y2);
+    ctx.stroke();
+  }
+
+  ctx.restore();
+}
+
+// Dessin du filler preview (ligne de pose en cours)
+function drawFencePreview(ctx, startCell, endCell, orientation, fenceDef) {
+  const { x: x1, y: y1 } = isoXY(startCell.col, startCell.row);
+  const { x: x2, y: y2 } = isoXY(endCell.col, endCell.row);
+  const hw = TILE_W / 2, hh = TILE_H / 2;
+
+  let fx1, fy1, fx2, fy2;
+  if (orientation === 'H') {
+    fx1 = x1 + hw; fy1 = y1 + hh; fx2 = x2 + hw; fy2 = y2 + hh;
+  } else {
+    fx1 = x1; fy1 = y1 + hh; fx2 = x2; fy2 = y2 + TILE_H;
+  }
+
+  ctx.save();
+  ctx.strokeStyle = fenceDef.color || '#ffa500';
+  ctx.lineWidth = 3;
+  ctx.setLineDash([5, 4]);
+  ctx.globalAlpha = 0.8;
+  ctx.beginPath();
+  ctx.moveTo(fx1, fy1);
+  ctx.lineTo(fx2, fy2);
+  ctx.stroke();
+  ctx.setLineDash([]);
+  ctx.restore();
+}
+
 // ─── HOOK ─────────────────────────────────────────────────────────────────────────
 export default function useRealGardenRenderer() {
   const canvasRef = useRef(null);
   const [ready, setReady] = useState(false);
-
-  // Layout recalculé à chaque render pour s'adapter au container
-  const layout = calcLayout();
 
   // Précharger les images
   useEffect(() => {
@@ -308,29 +558,27 @@ export default function useRealGardenRenderer() {
         files.map(f => loadImg(SPRITE_BASE + f).catch(() => null))
       );
       setReady(true);
-      console.log('[RealGardenRenderer] Images chargées');
     };
     loadAll();
   }, []);
 
   // ─── RENDER ──────────────────────────────────────────────────────────────────
-  const render = useCallback((canvas, objects, selectedId, highlightedCell) => {
+  const render = useCallback((canvas, objects, selectedId, highlightedCell, fenceDraft, hoveredCell) => {
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
     const dpr = window.devicePixelRatio || 1;
-    const { W, H, ox, oy } = layout;
 
-    canvas.width = Math.round(W * dpr);
-    canvas.height = Math.round(H * dpr);
-    canvas.style.width = W + 'px';
-    canvas.style.height = H + 'px';
+    canvas.width = Math.round(LAYOUT.W * dpr);
+    canvas.height = Math.round(LAYOUT.H * dpr);
+    canvas.style.width = LAYOUT.W + 'px';
+    canvas.style.height = LAYOUT.H + 'px';
     canvas.style.maxWidth = '100%';
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.imageSmoothingEnabled = false;
 
-    drawBg(ctx, W, H);
+    drawBg(ctx, LAYOUT.W, LAYOUT.H, LAYOUT);
     ctx.save();
-    ctx.translate(ox, oy);
+    ctx.translate(LAYOUT.ox, LAYOUT.oy);
 
     // Grille de fond (tous les tiles)
     for (let r = 0; r < GARDEN_GRID_ROWS; r++) {
@@ -342,8 +590,25 @@ export default function useRealGardenRenderer() {
       }
     }
 
-    // Objets (triés par position pour le Z-index correct)
-    const sortedObjects = [...objects].sort((a, b) => {
+    // Séparer clôtures et objets réguliers
+    const fences = objects.filter(o => o.type === 'fence');
+    const regularObjects = objects.filter(o => o.type !== 'fence');
+
+    // Dessiner les segments de clôture (sous les objets, sur la grille)
+    fences.forEach(fence => {
+      const pos = fence.position || { row: 0, col: 0 };
+      const { x, y } = isoXY(pos.col, pos.row);
+      const isSelected = selectedId === fence.uid;
+      drawFenceSegment(ctx, x, y, fence.fenceOrientation || 'H', fence, { selected: isSelected });
+    });
+
+    // Dessiner le preview de clôture en cours (ligne de la start à la cell survolée)
+    if (fenceDraft && hoveredCell) {
+      drawFencePreview(ctx, fenceDraft.cell, hoveredCell, fenceDraft.orientation, fenceDraft.fenceDef);
+    }
+
+    // Dessiner les objets réguliers (triés par Z-order)
+    const sortedObjects = [...regularObjects].sort((a, b) => {
       const posA = a.position || { row: 0, col: 0 };
       const posB = b.position || { row: 0, col: 0 };
       return (posA.row + posA.col) - (posB.row + posB.col);
@@ -357,62 +622,43 @@ export default function useRealGardenRenderer() {
     });
 
     ctx.restore();
-  }, [layout]);
+  }, []);
 
   // ─── HIT TEST ─────────────────────────────────────────────────────────────────
   const getCellAt = (clientX, clientY) => {
-    console.log('>>> getCellAt START');
     const canvas = canvasRef.current;
-    if (!canvas) {
-      console.log('>>> PAS DE CANVAS');
-      return null;
-    }
+    if (!canvas) return null;
     const rect = canvas.getBoundingClientRect();
-    console.log('>>> RECT:', rect.left, rect.top, rect.width, rect.height);
 
     const rx = (clientX - rect.left) / rect.width;
     const ry = (clientY - rect.top) / rect.height;
-    console.log('>>> rx/ry %:', rx.toFixed(2), ry.toFixed(2));
 
-    const px = rx * layout.W;
-    const py = ry * layout.H;
-    console.log('>>> px/py:', px.toFixed(0), py.toFixed(0));
-    console.log('>>> layout:', layout.W, layout.H, layout.ox, layout.oy);
+    const px = rx * LAYOUT.W;
+    const py = ry * LAYOUT.H;
 
-    // Calcul direct ici au lieu d'appeler screenToCell
-    const rx2 = px - layout.ox;
-    const ry2 = py - layout.oy;
-    const col = (rx2 / (TILE_W / 2) + ry2 / (TILE_H / 2)) / 2;
-    const row = (ry2 / (TILE_H / 2) - rx2 / (TILE_W / 2)) / 2;
-    const tc = Math.round(col);
-    const tr = Math.round(row);
-
-    console.log('>>> col/row:', col.toFixed(1), row.toFixed(1));
-    console.log('>>> tc/tr:', tc, tr);
-    console.log('>>> limites:', GARDEN_GRID_COLS, GARDEN_GRID_ROWS);
-
-    if (tr >= 0 && tr < GARDEN_GRID_ROWS && tc >= 0 && tc < GARDEN_GRID_COLS) {
-      console.log('>>> OK!');
-      return { row: tr, col: tc };
-    }
-    console.log('>>> HORS LIMITES');
-    return null;
+    return screenToCell(px, py, LAYOUT);
   };
 
   // ─── FIND OBJECT AT ──────────────────────────────────────────────────────────
-  const getObjectAt = useCallback((clientX, clientY) => {
+  const getObjectAt = useCallback((clientX, clientY, objects) => {
     const cell = getCellAt(clientX, clientY);
     if (!cell) return null;
 
-    // Chercher un objet à cette position
-    return null; // Sera implémenté avec les données
+    // Retourne le premier objet à cette cellule (Z-order: dernier = au-dessus)
+    const atCell = objects.filter(o => {
+      const p = o.position || {};
+      return p.row === cell.row && p.col === cell.col;
+    });
+    return atCell.length > 0 ? atCell[atCell.length - 1] : null;
   }, [getCellAt]);
 
   return {
     canvasRef,
     render,
     ready,
-    layout,
+    layout: LAYOUT,
+    getCellAt,
+    getObjectAt,
     GARDEN_GRID_COLS,
     GARDEN_GRID_ROWS,
   };
