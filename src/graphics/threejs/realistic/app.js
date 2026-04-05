@@ -12,6 +12,7 @@ import { AIEvolutionManager, aiEvolution } from '../../../lib/ai-engine.js';
 import { GardenChatAI, gardenChat } from '../../../lib/garden-chat-ai.js';
 import { RealGreenhouseHelper } from './helpers/realGreenhouseHelper.js';
 import { GridDeck } from './helpers/gridDeckHelper.js';
+import { FineGridDeck, VEGETABLES_CATALOG } from './helpers/FineGridDeck.js';
 import { TreeAnimationSystem, TreeParticleSystem } from './systems/treeAnimationSystem.js';
 import { TreeGameplaySystem } from './systems/treeGameplaySystem.js';
 
@@ -62,6 +63,9 @@ export class RealisticApp {
         // Système Grid Deck (grille isométrique pour le jardin)
         this.gridDeck = null;
         this.isGridDeckMode = false;
+        // Grille fine légumes (10cm/cellule, 24x50m)
+        this.fineGridDeck = null;
+        this.isFineGridDeckMode = false;
         this.selectedGardenObjectDef = null;
 
         // Systèmes d'arbres
@@ -194,13 +198,14 @@ export class RealisticApp {
             const h = container.offsetHeight || 500;
             console.log('[LudusTerra] Container:', w, 'x', h);
 
-            // 1. Initialiser le renderer
+            // 1. Initialiser le renderer avec anti-aliasing
             try {
                 this.renderer = new THREE.WebGLRenderer({
                     antialias: true,
                     alpha: false,
-                    powerPreference: 'low-power' // pour éviter les problèmes GPU
+                    powerPreference: 'high-performance',
                 });
+                this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
             } catch(e) {
                 console.error('[LudusTerra] WebGLRenderer failed:', e);
                 // Fallback sans WebGL
@@ -208,7 +213,6 @@ export class RealisticApp {
             }
             console.log('[LudusTerra] Renderer created, canvas:', !!this.renderer.domElement);
             this.renderer.setSize(w, h);
-            this.renderer.setPixelRatio(1);
             this.renderer.shadowMap.enabled = false;
             this.renderer.outputColorSpace = THREE.SRGBColorSpace;
             this.renderer.domElement.style.cssText = 'display:block;width:100%;height:100%;';
@@ -261,6 +265,10 @@ export class RealisticApp {
             this.gridDeck.createGrid(12, 10, 80); // 12x10 grid, worldSize 80 (same as world)
             this.gridDeck.setVisible(false); // starts hidden, toggled with 'P'
 
+            // 8b. Initialiser la grille fine (légumes, 10cm/cellule, 24x50m)
+            this.fineGridDeck = new FineGridDeck(this.scene);
+            this.fineGridDeck.setVisible(false); // starts hidden, toggled with 'V'
+
             // 9. Initialiser les systèmes d'arbres (animation, particules, gameplay)
             this.initTreeSystems();
 
@@ -279,6 +287,12 @@ export class RealisticApp {
 
             // 14. Charger l'état sauvegardé du Grid Deck
             this._loadGridDeckState();
+
+            // 14b. Charger l'état de la grille fine
+            if (this.fineGridDeck) {
+                this.fineGridDeck.setCamera(this.camera);
+                this.fineGridDeck._loadState();
+            }
 
             // 15. Exposer l'app globalement
             this.exposeGlobal();
@@ -388,7 +402,7 @@ export class RealisticApp {
     }
 
     setupShop() {
-        // Callback quand une graine est achetée
+        // Callback quand une graine est achetée — sync avec React
         this.shop.setOnPurchase((seedId, serreId, cellIdx) => {
             const serre = this.serres.find(s => s.id === serreId);
             if (serre) {
@@ -403,6 +417,10 @@ export class RealisticApp {
                         daysToMaturity: seed.daysToMaturity
                     }, cellIdx);
                     console.log(`🌱 ${seed.name} plantée!`);
+                    // Sync coins vers React
+                    if (window.__greenhubAddCoins) {
+                        window.__greenhubAddCoins(-seed.price);
+                    }
                 }
             }
         });
@@ -426,25 +444,36 @@ export class RealisticApp {
             font-family: system-ui, sans-serif;
         `;
 
-        panel.innerHTML = `
+        const renderSerreList = () => `
             <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
                 <h3 style="color:#7ed957;margin:0;font-size:14px;">🏠 Mes Serres</h3>
                 <span style="color:#888;font-size:11px;">${this.serres.length}/${this.gameState.maxSerres}</span>
             </div>
             <div id="serre-list" style="margin-bottom:12px;">
-                ${this.serres.map((s, i) => `
+                ${this.serres.length === 0 ? `
+                    <div style="color:#666;font-size:12px;text-align:center;padding:12px 0;">
+                        Aucune serre — ajoute-en une ci-dessous
+                    </div>
+                ` : this.serres.map((s, i) => `
                     <div style="
                         display:flex;justify-content:space-between;align-items:center;
                         background:rgba(255,255,255,0.05);border-radius:6px;padding:8px;margin-bottom:6px;
-                    ">
+                        cursor:pointer;
+                    " onclick="window.app.openSerrePanel('${s.id}')" title="Ouvrir cette serre">
                         <div>
                             <div style="color:#fff;font-size:12px;">${s.name}</div>
                             <div style="color:#888;font-size:10px;">${s.plants.filter(p=>p).length} plantes</div>
                         </div>
-                        <button onclick="window.app.removeSerre('${s.id}')" style="
-                            background:#e74c3c;border:none;color:#fff;font-size:10px;
-                            padding:4px 8px;border-radius:4px;cursor:pointer;
-                        ">×</button>
+                        <div style="display:flex;gap:4px;">
+                            <button onclick="event.stopPropagation();window.app.openSerrePanel('${s.id}')" style="
+                                background:#27ae60;border:none;color:#fff;font-size:10px;
+                                padding:4px 8px;border-radius:4px;cursor:pointer;
+                            ">Ouvrir</button>
+                            <button onclick="event.stopPropagation();window.app.removeSerre('${s.id}')" style="
+                                background:#e74c3c;border:none;color:#fff;font-size:10px;
+                                padding:4px 8px;border-radius:4px;cursor:pointer;
+                            ">×</button>
+                        </div>
                     </div>
                 `).join('')}
             </div>
@@ -454,19 +483,231 @@ export class RealisticApp {
             ">➕ Ajouter une serre</button>
         `;
 
+        panel.innerHTML = renderSerreList();
         document.body.appendChild(panel);
 
-        document.getElementById('btn-add-serre').onclick = () => this.addSerre();
+        document.getElementById('btn-add-serre').onclick = () => {
+            this.addSerre();
+            panel.innerHTML = renderSerreList();
+            document.getElementById('btn-add-serre').onclick = () => {
+                this.addSerre();
+                panel.innerHTML = renderSerreList();
+                document.getElementById('btn-add-serre').onclick = () => this.addSerre();
+            };
+        };
 
         // Fermer en cliquant ailleurs
         setTimeout(() => {
-            document.addEventListener('click', function closePanel(e) {
+            const closeHandler = (e) => {
                 if (!panel.contains(e.target) && e.target.id !== 'serre-management-btn') {
                     panel.remove();
-                    document.removeEventListener('click', closePanel);
+                    document.removeEventListener('click', closeHandler);
                 }
-            });
+            };
+            document.addEventListener('click', closeHandler);
         }, 100);
+    }
+
+    openSerrePanel(serreId) {
+        const serre = this.serres.find(s => s.id === serreId);
+        if (!serre) return;
+
+        // Popup de confirmation avant d'entrer
+        const overlay = document.createElement('div');
+        overlay.style.cssText = `
+            position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0,0,0,0.7); z-index: 300;
+            display: flex; align-items: center; justify-content: center;
+        `;
+
+        overlay.innerHTML = `
+            <div style="
+                background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+                border: 2px solid #7ed957; border-radius: 16px;
+                padding: 28px 32px; text-align: center;
+                font-family: system-ui, sans-serif;
+                box-shadow: 0 20px 60px rgba(0,0,0,0.6);
+                max-width: 320px;
+            ">
+                <div style="font-size:48px;margin-bottom:12px;">🏠</div>
+                <div style="color:#fff;font-size:16px;font-weight:700;margin-bottom:6px;">
+                    Voulez-vous entrer dans la serre ?
+                </div>
+                <div style="color:#888;font-size:13px;margin-bottom:20px;">
+                    ${serre.name}
+                </div>
+                <div style="display:flex;gap:10px;justify-content:center;">
+                    <button id="btn-enter-serre" style="
+                        flex:1; background:#27ae60; border:none; color:#fff;
+                        padding:10px 16px; border-radius:8px; cursor:pointer;
+                        font-size:13px; font-weight:600;
+                    ">✅ Entrer</button>
+                    <button id="btn-cancel-enter" style="
+                        flex:1; background:rgba(255,255,255,0.1); border:1px solid rgba(255,255,255,0.2);
+                        color:#fff; padding:10px 16px; border-radius:8px; cursor:pointer;
+                        font-size:13px;
+                    ">Annuler</button>
+                </div>
+            </div>
+        `;
+
+        document.body.appendChild(overlay);
+
+        document.getElementById('btn-enter-serre').onclick = () => {
+            overlay.remove();
+            this._showSerreDetail(serreId);
+        };
+
+        document.getElementById('btn-cancel-enter').onclick = () => {
+            overlay.remove();
+        };
+
+        overlay.addEventListener('click', (e) => {
+            if (e.target === overlay) overlay.remove();
+        });
+    }
+
+    _showSerreDetail(serreId) {
+        const serre = this.serres.find(s => s.id === serreId);
+        if (!serre) return;
+
+        const existing = document.getElementById('serre-detail');
+        if (existing) existing.remove();
+
+        const panel = document.createElement('div');
+        panel.id = 'serre-detail';
+        panel.style.cssText = `
+            position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            border: 2px solid #7ed957; border-radius: 16px;
+            padding: 20px; min-width: 340px; z-index: 200;
+            font-family: system-ui, sans-serif;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.6);
+        `;
+
+        const COLS = 4, ROWS = 6;
+        const plants = serre.plants;
+
+        const renderGrid = () => {
+            return `
+                <div style="display:grid;grid-template-columns:repeat(${COLS},1fr);gap:6px;margin-bottom:16px;">
+                    ${plants.map((p, idx) => {
+                        const emoji = p ? (p.emoji || GROWTH_STAGES[p.stage || 0]?.emoji || '🌱') : '';
+                        const bgColor = p ? 'rgba(46,204,113,0.2)' : 'rgba(255,255,255,0.05)';
+                        const borderColor = p ? 'rgba(46,204,113,0.5)' : 'rgba(255,255,255,0.1)';
+                        return `<div onclick="window.app.onSerreCellClick('${serreId}', ${idx})" style="
+                            width:52px;height:52px;
+                            background:${bgColor};
+                            border:2px solid ${borderColor};
+                            border-radius:8px;
+                            display:flex;align-items:center;justify-content:center;
+                            font-size:22px;
+                            cursor:pointer;
+                            transition:all 0.15s;
+                        " title="${p ? p.name : 'Vide'}">${emoji}</div>`;
+                    }).join('')}
+                </div>
+            `;
+        };
+
+        panel.innerHTML = `
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+                <div>
+                    <h2 style="color:#7ed957;margin:0;font-size:16px;">🏠 ${serre.name}</h2>
+                    <div style="color:#888;font-size:11px;margin-top:2px;">
+                        ${plants.filter(p=>p).length}/${plants.length} plantes
+                    </div>
+                </div>
+                <button onclick="document.getElementById('serre-detail').remove()" style="
+                    background:transparent;border:1px solid #555;color:#888;
+                    font-size:16px;width:28px;height:28px;border-radius:6px;
+                    cursor:pointer;line-height:1;
+                ">×</button>
+            </div>
+            ${renderGrid()}
+            <div style="display:flex;gap:8px;margin-bottom:8px;">
+                <button onclick="window.app.addPlantToSerre('${serreId}')" style="
+                    flex:1;background:#27ae60;border:none;color:#fff;
+                    padding:8px;border-radius:6px;cursor:pointer;font-size:12px;
+                ">🌱 Ajouter une plante</button>
+            </div>
+            <div id="serre-cell-actions" style="display:none;margin-top:12px;padding:12px;
+                background:rgba(46,204,113,0.1);border:1px solid rgba(46,204,113,0.3);border-radius:10px;">
+            </div>
+        `;
+
+        document.body.appendChild(panel);
+
+        const escHandler = (e) => {
+            if (e.key === 'Escape') {
+                panel.remove();
+                document.removeEventListener('keydown', escHandler);
+            }
+        };
+        document.addEventListener('keydown', escHandler);
+    }
+
+    onSerreCellClick(serreId, idx) {
+        const serre = this.serres.find(s => s.id === serreId);
+        if (!serre) return;
+        const plant = serre.plants[idx];
+        const actionsDiv = document.getElementById('serre-cell-actions');
+        if (!actionsDiv) return;
+
+        if (!plant) {
+            actionsDiv.style.display = 'none';
+            return;
+        }
+
+        const stage = GROWTH_STAGES[plant.stage || 0];
+        actionsDiv.style.display = 'block';
+        actionsDiv.innerHTML = `
+            <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;">
+                <span style="font-size:28px;">${stage?.emoji || '🌱'}</span>
+                <div>
+                    <div style="color:#fff;font-size:13px;font-weight:600;">${plant.name}</div>
+                    <div style="color:#7ed957;font-size:11px;">${stage?.name || 'Croissance'} · J+${plant.day || 0}</div>
+                </div>
+            </div>
+            <div style="display:flex;gap:6px;">
+                <button onclick="window.app.removePlantFromSerre('${serreId}', ${idx})" style="
+                    flex:1;background:rgba(220,53,69,0.3);border:1px solid rgba(220,53,69,0.5);
+                    color:#ff6b6b;padding:7px 0;border-radius:6px;cursor:pointer;font-size:11px;
+                ">🗑️ Retirer</button>
+                <button onclick="document.getElementById('serre-cell-actions').style.display='none'" style="
+                    flex:1;background:rgba(255,255,255,0.1);border:1px solid rgba(255,255,255,0.2);
+                    color:#fff;padding:7px 0;border-radius:6px;cursor:pointer;font-size:11px;
+                ">Fermer</button>
+            </div>
+        `;
+    }
+
+    addPlantToSerre(serreId) {
+        const serre = this.serres.find(s => s.id === serreId);
+        if (!serre) return;
+        const emptyIdx = serre.plants.findIndex(p => !p);
+        if (emptyIdx === -1) {
+            if (window.showNotification) window.showNotification('❌ Serre pleine !');
+            return;
+        }
+        serre.addPlant({
+            plantId: 'tomato',
+            name: 'Tomate',
+            emoji: '🍅',
+            color: 0xff4444,
+            stage: 0,
+            day: 0,
+        });
+        this.openSerrePanel(serreId);
+        if (window.showNotification) window.showNotification('🌱 Plante ajoutée !');
+    }
+
+    removePlantFromSerre(serreId, idx) {
+        const serre = this.serres.find(s => s.id === serreId);
+        if (!serre) return;
+        serre.removePlant(idx);
+        this.openSerrePanel(serreId);
+        if (window.showNotification) window.showNotification('🗑️ Plante retirée');
     }
 
     // Exposer l'app globalement pour les callbacks
@@ -476,55 +717,88 @@ export class RealisticApp {
     }
 
     setupCameraControls() {
-        let isDragging = false;
-        let previousMousePosition = { x: 0, y: 0 };
+        let isDragging    = false;   // orbit drag
+        let isPanning     = false;    // right/middle click pan
+        let previousMouse = { x: 0, y: 0 };
         let theta = Math.PI / 4;
-        let phi = Math.PI / 3;
+        let phi   = Math.PI / 3;
         let radius = 45;
+        let panX   = 0;
+        let panZ   = 0;
 
         const updateCameraPosition = () => {
             if (!this.camera) return;
-            this.camera.position.x = radius * Math.sin(phi) * Math.cos(theta);
-            this.camera.position.z = radius * Math.sin(phi) * Math.sin(theta);
-            this.camera.position.y = radius * Math.cos(phi);
-            this.camera.lookAt(0, 0, 0);
+            this.camera.position.x = panX + radius * Math.sin(phi) * Math.cos(theta);
+            this.camera.position.z = panZ + radius * Math.sin(phi) * Math.sin(theta);
+            this.camera.position.y = panZ * 0.2 + radius * Math.cos(phi);
+            this.camera.lookAt(panX, 0, panZ);
         };
 
         updateCameraPosition();
         const canvas = this.renderer.domElement;
 
+        // Orbit drag (left click) — only when NOT in grid mode
         canvas.addEventListener('mousedown', (e) => {
-            if (this.isGridDeckMode) return; // Disable camera in grid mode
+            if (e.button !== 0) return;
+            if (this.isGridDeckMode || this.isFineGridDeckMode) return;
             isDragging = true;
-            previousMousePosition = { x: e.clientX, y: e.clientY };
+            previousMouse = { x: e.clientX, y: e.clientY };
+        });
+
+        // Right click or middle click — pan
+        canvas.addEventListener('mousedown', (e) => {
+            if (e.button === 1 || e.button === 2) {
+                isPanning = true;
+                previousMouse = { x: e.clientX, y: e.clientY };
+                e.preventDefault();
+            }
         });
 
         canvas.addEventListener('mousemove', (e) => {
+            const dx = e.clientX - previousMouse.x;
+            const dy = e.clientY - previousMouse.y;
+
+            // Pan
+            if (isPanning) {
+                panX -= dx * 0.08;
+                panZ -= dy * 0.08;
+                panX = Math.max(-14, Math.min(14, panX));
+                panZ = Math.max(-27, Math.min(27, panZ));
+                updateCameraPosition();
+                previousMouse = { x: e.clientX, y: e.clientY };
+                return;
+            }
+
+            // Orbit
             if (!isDragging) return;
-            if (this.isGridDeckMode) return;
-            const deltaX = e.clientX - previousMousePosition.x;
-            const deltaY = e.clientY - previousMousePosition.y;
-            theta -= deltaX * 0.005;
-            phi -= deltaY * 0.005;
+            if (this.isGridDeckMode || this.isFineGridDeckMode) return;
+            theta -= dx * 0.005;
+            phi   -= dy * 0.005;
             phi = Math.max(0.3, Math.min(Math.PI / 2 - 0.1, phi));
             updateCameraPosition();
-            previousMousePosition = { x: e.clientX, y: e.clientY };
+            previousMouse = { x: e.clientX, y: e.clientY };
         });
 
-        canvas.addEventListener('mouseup', () => isDragging = false);
-        canvas.addEventListener('mouseleave', () => isDragging = false);
+        canvas.addEventListener('mouseup',   () => { isDragging = false; isPanning = false; });
+        canvas.addEventListener('mouseleave', () => { isDragging = false; isPanning = false; });
 
+        canvas.addEventListener('contextmenu', (e) => e.preventDefault());
+
+        // Scroll — zoom
         canvas.addEventListener('wheel', (e) => {
             e.preventDefault();
             radius += e.deltaY * 0.03;
-            radius = Math.max(20, Math.min(120, radius));
+            radius = Math.max(5, Math.min(200, radius));
             updateCameraPosition();
         }, { passive: false });
 
+        // Double-click — reset view
         canvas.addEventListener('dblclick', () => {
             theta = Math.PI / 4;
-            phi = Math.PI / 3;
-            radius = 45;
+            phi   = Math.PI / 3;
+            radius = 60;
+            panX  = 0;
+            panZ  = 0;
             updateCameraPosition();
         });
     }
@@ -537,33 +811,40 @@ export class RealisticApp {
             this.handleClick(e);
         });
 
-        // Grid Deck hover detection
+        // Grid Deck hover detection — coarse (P) ou fine (V)
         canvas.addEventListener('mousemove', (e) => {
-            if (!this.isGridDeckMode || !this.gridDeck) return;
             const rect = canvas.getBoundingClientRect();
             const mouse = new THREE.Vector2(
                 ((e.clientX - rect.left) / rect.width) * 2 - 1,
                 -((e.clientY - rect.top) / rect.height) * 2 + 1
             );
-            const raycaster = new THREE.Raycaster();
-            raycaster.setFromCamera(mouse, this.camera);
-            const intersects = raycaster.intersectObjects(this.gridDeck.getCellMeshes(), false);
-            if (intersects.length > 0) {
-                const cell = this.gridDeck.getCellFromMesh(intersects[0].object);
-                if (cell) {
-                    this.gridDeck.highlightCell(cell.row, cell.col);
-                    // Ghost preview if an object is selected
-                    if (this.selectedGardenObjectDef) {
-                        this.gridDeck.showGhostPreview(this.selectedGardenObjectDef, cell.row, cell.col);
+
+            // Grille fine (V)
+            if (this.isFineGridDeckMode && this.fineGridDeck) {
+                this.fineGridDeck.handleHover(mouse);
+                return;
+            }
+
+            // Grille coarse (P)
+            if (this.isGridDeckMode && this.gridDeck) {
+                const raycaster = new THREE.Raycaster();
+                raycaster.setFromCamera(mouse, this.camera);
+                const intersects = raycaster.intersectObjects(this.gridDeck.getCellMeshes(), false);
+                if (intersects.length > 0) {
+                    const cell = this.gridDeck.getCellFromMesh(intersects[0].object);
+                    if (cell) {
+                        this.gridDeck.highlightCell(cell.row, cell.col);
+                        if (this.selectedGardenObjectDef) {
+                            this.gridDeck.showGhostPreview(this.selectedGardenObjectDef, cell.row, cell.col);
+                        }
+                        if (this.gridDeck.isRectMode) {
+                            this.gridDeck.updateRectHover(cell.row, cell.col);
+                        }
                     }
-                    // Update rectangle preview
-                    if (this.gridDeck.isRectMode) {
-                        this.gridDeck.updateRectHover(cell.row, cell.col);
-                    }
+                } else {
+                    this.gridDeck.clearHighlight();
+                    this.gridDeck.clearGhostPreview();
                 }
-            } else {
-                this.gridDeck.clearHighlight();
-                this.gridDeck.clearGhostPreview();
             }
         });
 
@@ -579,6 +860,14 @@ export class RealisticApp {
 
     setupKeyboardControls() {
         window.addEventListener('keydown', (e) => {
+            // Ctrl+Z = Undo last batch placement (fine grid)
+            if (e.ctrlKey && e.key === 'z' && this.isFineGridDeckMode && this.fineGridDeck) {
+                const count = this.fineGridDeck.undoLastBatch();
+                if (count > 0 && window.showNotification) {
+                    window.showNotification(`↩️ ${count} objet${count > 1 ? 's' : ''} annulé${count > 1 ? 's' : ''}`);
+                }
+                return;
+            }
             switch(e.key) {
                 case 'd':
                 case 'D':
@@ -602,6 +891,10 @@ export class RealisticApp {
                     if (this.isDragMode) this.setDragMode(false);
                     if (this.selectedObject) this.selectedObject = null;
                     if (this.gridDeck && this.gridDeck.isRectMode) this.gridDeck.cancelRect();
+                    if (this.isFineGridDeckMode && this.fineGridDeck) {
+                        if (this.fineGridDeck.isLineMode) this.fineGridDeck.cancelLine();
+                        if (this.fineGridDeck.isRectMode) this.fineGridDeck.cancelRect();
+                    }
                     break;
                 case '+':
                 case '=':
@@ -651,13 +944,15 @@ export class RealisticApp {
                     break;
                 case 'p':
                 case 'P':
-                    // Toggle Grid Deck mode
+                    // Toggle Grid Deck mode (coarse — arbres, structures)
                     this.isGridDeckMode = !this.isGridDeckMode;
+                    this.isFineGridDeckMode = false;
                     if (this.gridDeck) {
                         this.gridDeck.setVisible(this.isGridDeckMode);
                         if (this.isGridDeckMode) {
                             this.gridDeck.createUI(this);
-                            if (window.showNotification) window.showNotification('📐 Mode Jardin — P pour quitter');
+                            if (this.fineGridDeck) this.fineGridDeck.setVisible(false);
+                            if (window.showNotification) window.showNotification('📐 Grille Arbres — P pour quitter, V = grille fine');
                         } else {
                             this.gridDeck.removeUI();
                             this.gridDeck.cancelRect();
@@ -665,15 +960,56 @@ export class RealisticApp {
                         }
                     }
                     break;
+                case 'v':
+                case 'V':
+                    // Toggle Fine Grid Deck mode (légumes, 10cm/cellule)
+                    this.isFineGridDeckMode = !this.isFineGridDeckMode;
+                    this.isGridDeckMode = false;
+                    if (this.fineGridDeck) {
+                        this.fineGridDeck.setVisible(this.isFineGridDeckMode);
+                        if (this.isFineGridDeckMode) {
+                            this.fineGridDeck.createUI(this);
+                            if (this.gridDeck) {
+                                this.gridDeck.setVisible(false);
+                                this.gridDeck.removeUI();
+                            }
+                            if (window.showNotification) window.showNotification('🥕 Grille Fine (10cm) — V pour quitter, P = grille arbres');
+                        } else {
+                            this.fineGridDeck.removeUI();
+                            this.fineGridDeck.cancelRect();
+                            this.selectedGardenObjectDef = null;
+                        }
+                    }
+                    break;
                 case 'r':
                 case 'R':
-                    // Toggle Rectangle mode
-                    if (this.gridDeck && this.isGridDeckMode) {
-                        if (this.gridDeck.isRectMode) {
-                            this.gridDeck.cancelRect();
-                            if (window.showNotification) window.showNotification('❌ Rectangle annulé');
-                        } else {
-                            this.gridDeck.startRectMode();
+                    // Toggle Rectangle mode (actif sur grille active)
+                    {
+                        const targetGrid = this.isFineGridDeckMode ? this.fineGridDeck : this.gridDeck;
+                        const isActive = this.isFineGridDeckMode ? this.isFineGridDeckMode : this.isGridDeckMode;
+                        if (targetGrid && isActive) {
+                            if (targetGrid.isRectMode) {
+                                targetGrid.cancelRect();
+                                if (window.showNotification) window.showNotification('❌ Rectangle annulé');
+                            } else {
+                                targetGrid.startRectMode();
+                            }
+                        }
+                    }
+                    break;
+                case 'l':
+                case 'L':
+                    // Toggle Line mode (grille fine uniquement)
+                    {
+                        if (this.isFineGridDeckMode && this.fineGridDeck) {
+                            if (this.fineGridDeck.isLineMode) {
+                                this.fineGridDeck.cancelLine();
+                                if (window.showNotification) window.showNotification('❌ Ligne annulée');
+                            } else {
+                                // Cancel rect if active
+                                if (this.fineGridDeck.isRectMode) this.fineGridDeck.cancelRect();
+                                this.fineGridDeck.startLineMode();
+                            }
                         }
                     }
                     break;
@@ -776,6 +1112,19 @@ export class RealisticApp {
         const raycaster = new THREE.Raycaster();
         raycaster.setFromCamera(mouse, this.camera);
 
+        // Fine Grid Deck mode (V) — click via raycast plane
+        if (this.isFineGridDeckMode && this.fineGridDeck) {
+            const intersects = raycaster.intersectObject(this.fineGridDeck.getRaycastPlane(), false);
+            if (intersects.length > 0) {
+                const pt = intersects[0].point;
+                const cell = this.fineGridDeck.worldToCell(pt.x, pt.z);
+                if (cell) {
+                    this.handleFineGridDeckClick(cell.row, cell.col);
+                }
+            }
+            return;
+        }
+
         // Grid Deck mode - click on isometric grid cells
         if (this.isGridDeckMode && this.gridDeck) {
             const intersects = raycaster.intersectObjects(this.gridDeck.getCellMeshes(), false);
@@ -853,6 +1202,206 @@ export class RealisticApp {
                     return;
                 } else {
                     console.log(`🖱️ Clicked but outside grid: localX=${localX.toFixed(1)}, localZ=${localZ.toFixed(1)}, startX=${startX.toFixed(1)}, startZ=${startZ.toFixed(1)}`);
+                }
+            }
+        }
+
+        // === CLIC SUR SERRES RÉELLES (3D sur le terrain) ===
+        if (this.realGreenhouse && this.realGreenhouse.greenhouses.length > 0) {
+            for (const gh of this.realGreenhouse.greenhouses) {
+                const intersects = raycaster.intersectObjects(gh.group.children, true);
+                if (intersects.length > 0) {
+                    this._openRealGreenhousePopup(gh.id);
+                    return;
+                }
+            }
+        }
+    }
+
+    _openRealGreenhousePopup(greenhouseId) {
+        const gh = this.realGreenhouse?.greenhouses.find(g => g.id === greenhouseId);
+        if (!gh) return;
+
+        const existing = document.getElementById('greenhouse-enter-popup');
+        if (existing) existing.remove();
+
+        const overlay = document.createElement('div');
+        overlay.id = 'greenhouse-enter-popup';
+        overlay.style.cssText = `
+            position:fixed;top:0;left:0;right:0;bottom:0;
+            background:rgba(0,0,0,0.7);z-index:300;
+            display:flex;align-items:center;justify-content:center;
+        `;
+
+        overlay.innerHTML = `
+            <div style="
+                background:linear-gradient(135deg,#1a1a2e 0%,#16213e 100%);
+                border:2px solid #7ed957;border-radius:16px;
+                padding:28px 32px;text-align:center;
+                font-family:system-ui,sans-serif;
+                box-shadow:0 20px 60px rgba(0,0,0,0.6);max-width:320px;
+            ">
+                <div style="font-size:48px;margin-bottom:12px;">🏡</div>
+                <div style="color:#fff;font-size:16px;font-weight:700;margin-bottom:6px;">
+                    Voulez-vous entrer dans la serre ?
+                </div>
+                <div style="color:#888;font-size:13px;margin-bottom:20px;">${gh.name}</div>
+                <div style="display:flex;gap:10px;justify-content:center;">
+                    <button id="btn-gh-enter" style="
+                        flex:1;background:#27ae60;border:none;color:#fff;
+                        padding:10px 16px;border-radius:8px;cursor:pointer;
+                        font-size:13px;font-weight:600;
+                    ">✅ Entrer</button>
+                    <button id="btn-gh-cancel" style="
+                        flex:1;background:rgba(255,255,255,0.1);
+                        border:1px solid rgba(255,255,255,0.2);color:#fff;
+                        padding:10px 16px;border-radius:8px;cursor:pointer;
+                        font-size:13px;
+                    ">Annuler</button>
+                </div>
+            </div>
+        `;
+
+        document.body.appendChild(overlay);
+
+        document.getElementById('btn-gh-enter').onclick = () => {
+            overlay.remove();
+            this._showRealGreenhouseDetail(gh.id);
+        };
+
+        document.getElementById('btn-gh-cancel').onclick = () => overlay.remove();
+        overlay.addEventListener('click', (e) => { if (e.target === overlay) overlay.remove(); });
+    }
+
+    _showRealGreenhouseDetail(greenhouseId) {
+        const gh = this.realGreenhouse?.greenhouses.find(g => g.id === greenhouseId);
+        if (!gh) return;
+
+        const existing = document.getElementById('greenhouse-detail');
+        if (existing) existing.remove();
+
+        const panel = document.createElement('div');
+        panel.id = 'greenhouse-detail';
+        panel.style.cssText = `
+            position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);
+            background:linear-gradient(135deg,#1a1a2e 0%,#16213e 100%);
+            border:2px solid #7ed957;border-radius:16px;
+            padding:24px;min-width:360px;z-index:200;
+            font-family:system-ui,sans-serif;
+            box-shadow:0 20px 60px rgba(0,0,0,0.6);
+        `;
+
+        panel.innerHTML = `
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;">
+                <div>
+                    <h2 style="color:#7ed957;margin:0;font-size:18px;">🏡 ${gh.name}</h2>
+                    <div style="color:#888;font-size:12px;margin-top:4px;">
+                        Serre réelle · Placer pour l'instant
+                    </div>
+                </div>
+                <button onclick="document.getElementById('greenhouse-detail').remove()" style="
+                    background:transparent;border:1px solid #555;color:#888;
+                    font-size:16px;width:28px;height:28px;border-radius:6px;
+                    cursor:pointer;line-height:1;
+                ">×</button>
+            </div>
+            <div style="background:rgba(126,217,87,0.08);border:1px solid rgba(126,217,87,0.3);
+                border-radius:10px;padding:20px;text-align:center;margin-bottom:16px;">
+                <div style="font-size:40px;margin-bottom:10px;">🌿</div>
+                <div style="color:#fff;font-size:14px;font-weight:600;margin-bottom:4px;">Contenu à venir</div>
+                <div style="color:#888;font-size:12px;">
+                    Les étagères, les plantations et la gestion des cultures seront disponibles ici.
+                </div>
+            </div>
+            <div style="display:flex;gap:8px;">
+                <button onclick="if(window.app.realGreenhouse){window.app.realGreenhouse.removeGreenhouse('${gh.id}');document.getElementById('greenhouse-detail').remove();}" style="
+                    flex:1;background:rgba(220,53,69,0.3);border:1px solid rgba(220,53,69,0.5);
+                    color:#ff6b6b;padding:9px 0;border-radius:8px;cursor:pointer;
+                    font-size:12px;
+                ">🗑️ Supprimer</button>
+                <button onclick="document.getElementById('greenhouse-detail').remove()" style="
+                    flex:1;background:rgba(255,255,255,0.1);border:1px solid rgba(255,255,255,0.2);
+                    color:#fff;padding:9px 0;border-radius:8px;cursor:pointer;
+                    font-size:12px;
+                ">Fermer</button>
+            </div>
+        `;
+
+        document.body.appendChild(panel);
+
+        const escHandler = (e) => {
+            if (e.key === 'Escape') { panel.remove(); document.removeEventListener('keydown', escHandler); }
+        };
+        document.addEventListener('keydown', escHandler);
+    }
+
+    handleFineGridDeckClick(row, col) {
+        const fineGrid = this.fineGridDeck;
+
+        // Mode ligne
+        if (fineGrid.isLineMode) {
+            if (!fineGrid.lineStart) {
+                fineGrid.handleLineFirstClick(row, col);
+                if (window.showNotification) {
+                    window.showNotification('📏 Cliquez un second point pour terminer la ligne');
+                }
+            } else {
+                if (this.selectedGardenObjectDef) {
+                    const placed = fineGrid.finishLine(this.selectedGardenObjectDef);
+                    if (placed && placed.length > 0) {
+                        if (window.showNotification) {
+                            window.showNotification(`✅ ${placed.length}× ${this.selectedGardenObjectDef.name} posés en ligne !`);
+                        }
+                    }
+                } else {
+                    fineGrid.cancelLine();
+                    if (window.showNotification) {
+                        window.showNotification('⚠️ Sélectionnez d\'abord un légume/objet dans la liste');
+                    }
+                }
+            }
+            return;
+        }
+
+        // Mode rectangle
+        if (fineGrid.isRectMode) {
+            if (!fineGrid.rectStart) {
+                fineGrid.handleRectFirstClick(row, col);
+                if (window.showNotification) {
+                    window.showNotification('📐 Cliquez un second point pour terminer le rectangle');
+                }
+            } else {
+                if (this.selectedGardenObjectDef) {
+                    const placed = fineGrid.finishRect(this.selectedGardenObjectDef);
+                    if (placed && placed.length > 0) {
+                        if (window.showNotification) {
+                            window.showNotification(`✅ ${placed.length}× ${this.selectedGardenObjectDef.name} posés !`);
+                        }
+                    }
+                } else {
+                    fineGrid.cancelRect();
+                    if (window.showNotification) {
+                        window.showNotification('⚠️ Sélectionnez d\'abord un légume/objet dans la liste');
+                    }
+                }
+            }
+            return;
+        }
+
+        // Objet existant ?
+        const existing = fineGrid.getObjectAt(row, col);
+        if (existing) {
+            fineGrid.selectCell(row, col);
+            fineGrid.selectedPlacedObject = existing;
+            fineGrid.showInfoPanel(existing, fineGrid);
+        } else if (this.selectedGardenObjectDef) {
+            const placed = fineGrid.placeObject(this.selectedGardenObjectDef, row, col);
+            if (placed) {
+                fineGrid.selectCell(row, col);
+                fineGrid.selectedPlacedObject = placed;
+                fineGrid.showInfoPanel(placed, fineGrid);
+                if (window.showNotification) {
+                    window.showNotification(`🥕 ${this.selectedGardenObjectDef.name} placé !`);
                 }
             }
         }
@@ -1144,11 +1693,12 @@ export class RealisticApp {
     }
 
     handleResize() {
+        // Le redimensionnement est géré par ResizeObserver dans LudusTerraeTab
+        // Ce listener window est un fallback mais utilise les bonnes dimensions du renderer
         window.addEventListener('resize', () => {
             if (!this.camera || !this.renderer) return;
-            this.camera.aspect = window.innerWidth / window.innerHeight;
-            this.camera.updateProjectionMatrix();
-            this.renderer.setSize(window.innerWidth, window.innerHeight);
+            // Le renderer utilise déjà les dimensions du container via l'init
+            // On ne fait rien ici pour éviter les conflits avec ResizeObserver
         });
     }
 
@@ -1511,15 +2061,50 @@ export class RealisticApp {
     }
 
     getGameState() {
+        // Si __greenhubGameState existe (synchro avec React), l'utiliser
+        const reactState = window.__greenhubGameState;
+        if (reactState) {
+            return {
+                score: reactState.score ?? this.gameState.score,
+                coins: reactState.coins ?? this.gameState.coins,
+                streak: reactState.streak ?? this.gameState.streak,
+            };
+        }
         return { ...this.gameState };
+    }
+
+    /**
+     * Ajoute des pièces (positif ou négatif) — sync avec React
+     */
+    addCoins(amount) {
+        this.gameState.coins += amount;
+        // Sync vers React
+        if (window.__greenhubAddCoins) {
+            window.__greenhubAddCoins(amount);
+        }
+    }
+
+    openGreenhouseUI(uid) {
+        if (this._onOpenSerreBois) {
+            this._onOpenSerreBois(uid);
+        }
+    }
+
+    _onOpenSerreBois = null;
+
+    setOnOpenSerreBois(cb) {
+        this._onOpenSerreBois = cb;
     }
 
     clearAllGrid() {
         if (this.gridDeck) {
             this.gridDeck.clearAll();
-            if (window.showNotification) {
-                window.showNotification('🗑️ Tous les objets du jardin ont été supprimés');
-            }
+        }
+        if (this.fineGridDeck) {
+            this.fineGridDeck.clearAll();
+        }
+        if (window.showNotification) {
+            window.showNotification('🗑️ Tous les objets du jardin ont été supprimés');
         }
     }
 
@@ -1536,6 +2121,89 @@ export class RealisticApp {
             const saved = localStorage.getItem('greenhub_grid_state');
             if (saved) this.gridDeck.loadState(saved);
         } catch (e) { console.warn('GridDeck load failed', e); }
+    }
+
+    // ── Transfer from 2D Garden Planner ─────────────────────────────────────
+    transferGardenPlan(planData) {
+        try {
+            this._transferGardenPlanImpl(planData);
+        } catch (err) {
+            console.error('[GardenPlanner] Transfer failed:', err);
+            if (window.showNotification) {
+                window.showNotification(`❌ Erreur transfert: ${err.message}`);
+            }
+        }
+    }
+
+    _transferGardenPlanImpl(planData) {
+        const { fineGridDeck, gridDeck } = this;
+        if (!fineGridDeck) {
+            console.warn('[GardenPlanner] fineGridDeck not ready');
+            return;
+        }
+
+        const { perimeterFence, objects } = planData;
+
+        // Step 1: Place all plants first (before any clear)
+        // This avoids destroying existing scene objects while the scene is actively rendering
+        if (objects && objects.length > 0) {
+            const vegCatalog = VEGETABLES_CATALOG;
+            objects.forEach(obj => {
+                const def = vegCatalog.find(v => v.id === obj.id);
+                if (def) {
+                    fineGridDeck.placeObject(def, obj.row, obj.col);
+                }
+            });
+        }
+
+        // Step 2: Switch to fine grid mode BEFORE clear to avoid rendering issues
+        this.isFineGridDeckMode = true;
+        this.isGridDeckMode = false;
+        if (gridDeck) gridDeck.setVisible(false);
+        fineGridDeck.setVisible(true);
+
+        // Step 3: Clear old objects (now scene is already showing fineGridDeck)
+        try {
+            const toRemove = fineGridDeck.placedObjects.slice();
+            fineGridDeck.placedObjects = [];
+            fineGridDeck._cellMap = new Map();
+            toRemove.forEach(obj => {
+                try {
+                    fineGridDeck.scene.remove(obj.group);
+                    obj.group.traverse(child => {
+                        if (child.geometry) child.geometry.dispose();
+                    });
+                } catch (e) {}
+            });
+            localStorage.removeItem('greenhub_fine_grid_state');
+            localStorage.removeItem('greenhub_fine_grid_photos');
+            fineGridDeck.objectPhotos = {};
+        } catch (err) {
+            console.warn('[GardenPlanner] clear error:', err);
+        }
+
+        // Step 4: Perimeter fence with custom height
+        if (perimeterFence) {
+            fineGridDeck.setFenceHeight(perimeterFence.height ?? 1.5);
+            fineGridDeck.delimitTerrain(perimeterFence.type ?? 'grillage');
+            fineGridDeck.setFenceHeight(null);
+        }
+
+        // Step 5: Save final state once
+        try {
+            const data = {
+                placedObjects: fineGridDeck.placedObjects.map(o => ({
+                    uid: o.uid, objectDef: o.objectDef, row: o.row, col: o.col, span: o.span,
+                })),
+            };
+            localStorage.setItem('greenhub_fine_grid_state', JSON.stringify(data));
+        } catch (e) {}
+
+        if (window.showNotification) {
+            window.showNotification(
+                `🗺️ Plan transféré: ${objects?.length || 0} plantes${perimeterFence ? ' + grillage' : ''}`
+            );
+        }
     }
 
     dispose() {

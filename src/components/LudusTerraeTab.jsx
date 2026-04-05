@@ -4,6 +4,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { RealisticApp } from '../graphics/threejs/realistic/app.js';
+import GardenPlannerPanel from './gardenPlanner/GardenPlannerPanel.jsx';
 
 export default function LudusTerraeTab({ onOpenSerreBois }) {
   const containerRef = useRef(null);
@@ -15,6 +16,7 @@ export default function LudusTerraeTab({ onOpenSerreBois }) {
   const [isDragMode, setIsDragMode] = useState(false);
   const [isSeedDragMode, setIsSeedDragMode] = useState(false);
   const [isGreenhouseMode, setIsGreenhouseMode] = useState(false);
+  const [is2DPlannerOpen, setIs2DPlannerOpen] = useState(false);
   const [activeSeason, setActiveSeason] = useState('spring');
   const [activeWeather, setActiveWeather] = useState('clear');
 
@@ -45,10 +47,10 @@ export default function LudusTerraeTab({ onOpenSerreBois }) {
       app.startAnimation();
       resizeObserver.observe(container);
 
-      // Bridger openGreenhouseUI vers React
-      app.openGreenhouseUI = (uid) => {
+      // Enregistrer le callback pour ouvrir la serre en bois
+      app.setOnOpenSerreBois((uid) => {
         if (onOpenSerreBois) onOpenSerreBois(uid);
-      };
+      });
 
       // Polling état du jeu toutes les 300ms
       const pollInterval = setInterval(() => {
@@ -257,10 +259,10 @@ export default function LudusTerraeTab({ onOpenSerreBois }) {
         <button style={btnStyle(false)} onClick={handleShop}>🛒 Boutique</button>
         <button style={btnStyle(isDragMode)} onClick={handleToggleDrag}>🖐️ Déplacer</button>
         <button style={btnStyle(isSeedDragMode)} onClick={handleToggleSeedDrag}>🌱 Positionner</button>
-        <button style={btnStyle(false)} onClick={handleSerres}>🏠 Serres</button>
         <button style={btnStyle(false)} onClick={handleEvolve}>🧬 Évoluer</button>
         <button style={btnStyle(false)} onClick={handleChat}>🤖 Chat IA</button>
         <button style={btnStyle(isGreenhouseMode)} onClick={handleToggleGreenhouse}>🏡 Serre Réelle</button>
+        <button style={btnStyle(is2DPlannerOpen)} onClick={() => setIs2DPlannerOpen(v => !v)}>🗺️ Planneur 2D</button>
         <button style={btnStyle(false)} onClick={handleResetCam}>🔄 Reset Cam</button>
         <button style={{ ...btnStyle(false), borderColor: '#e74c3c', color: '#ff6b6b' }} onClick={handleClearAll}>🗑️ Tout supprimer</button>
       </div>
@@ -272,15 +274,28 @@ export default function LudusTerraeTab({ onOpenSerreBois }) {
         borderRadius: 8, padding: '5px 12px', fontSize: 10, color: 'rgba(255,255,255,0.5)',
         backdropFilter: 'blur(8px)',
       }}>
-        📐 Touche <kbd style={kbdStyle}>P</kbd> — Mode Jardin · Drag = tourner · Molette = zoom
+        📐 <kbd style={kbdStyle}>P</kbd> = Arbres · <kbd style={kbdStyle}>V</kbd> = Fine · <kbd style={kbdStyle}>L</kbd> = Ligne · <kbd style={kbdStyle}>R</kbd> = Rect · <kbd style={kbdStyle}>Ctrl+Z</kbd> = Undo · Clic serre = entrer
       </div>
 
-      {/* ── 3D Canvas ── */}
+      {/* ── 3D Canvas (always mounted so app stays initialized) ── */}
       <div
         ref={containerRef}
         id="ludus-terrae-container"
         style={{ width: '100%', height: 'calc(100vh - 220px)', borderRadius: 12, overflow: 'hidden', border: '3px solid rgba(60,90,30,0.5)', boxShadow: '0 8px 32px rgba(0,0,0,0.4)' }}
       />
+
+      {/* ── 2D Garden Planner overlay ── */}
+      {is2DPlannerOpen && (
+        <GardenPlannerPanel
+          onTransfer={(planData) => {
+            if (appRef.current) {
+              appRef.current.transferGardenPlan(planData);
+              setIs2DPlannerOpen(false);
+            }
+          }}
+          onClose={() => setIs2DPlannerOpen(false)}
+        />
+      )}
     </div>
   );
 }
